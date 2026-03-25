@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gita Support Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .pulse-dot { animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <!-- Login Screen -->
+  <div id="loginScreen" class="min-h-screen flex items-center justify-center">
+    <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+      <div class="text-center mb-8">
+        <div class="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+          </svg>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900">Gita Support</h1>
+        <p class="text-gray-500 mt-1">Admin Dashboard</p>
+      </div>
+      <div id="loginError" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm"></div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+          <input id="loginUsername" type="text" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" placeholder="admin" value="admin">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+          <input id="loginPassword" type="password" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" placeholder="Password">
+        </div>
+        <button id="loginBtn" onclick="login()" class="w-full bg-indigo-600 text-white py-2.5 rounded-lg font-medium hover:bg-indigo-700 transition">Sign In</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard" class="hidden">
+    <!-- Top Navbar -->
+    <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-40">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-indigo-600 rounded-lg flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+          </svg>
+        </div>
+        <span class="font-semibold text-gray-900 text-lg">Gita Support</span>
+        <div id="whatsappStatus" class="flex items-center gap-1.5 ml-4 px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+          <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+          Checking...
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <div id="modeToggle" class="flex items-center gap-2">
+          <span id="modeLabel" class="text-xs font-medium px-3 py-1 rounded-full bg-amber-100 text-amber-700">TEST</span>
+          <span id="modeGroup" class="text-xs text-gray-400 hidden sm:inline"></span>
+          <button onclick="toggleMode()" id="modeBtn" class="text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition">Switch to Prod</button>
+        </div>
+        <span id="adminName" class="text-sm text-gray-600"></span>
+        <button onclick="logout()" class="text-sm text-gray-500 hover:text-red-600 transition">Logout</button>
+      </div>
+    </nav>
+
+    <div class="flex">
+      <!-- Sidebar -->
+      <aside class="w-64 bg-white border-r border-gray-200 min-h-[calc(100vh-57px)] p-4 sticky top-[57px]">
+        <nav class="space-y-1">
+          <button onclick="showView('overview')" data-view="overview" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+            Overview
+          </button>
+          <button onclick="showView('messages')" data-view="messages" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
+            All Messages
+          </button>
+          <button onclick="showView('unknown')" data-view="unknown" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Unknown
+            <span id="unknownBadge" class="ml-auto bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded-full font-medium">0</span>
+          </button>
+          <button onclick="showView('actions')" data-view="actions" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            Actions
+            <span id="actionsBadge" class="ml-auto bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-medium">0</span>
+          </button>
+          <button onclick="showView('faq')" data-view="faq" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+            Knowledge Base
+          </button>
+          <button onclick="showView('context')" data-view="context" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+            Reference Context
+          </button>
+          <button onclick="showView('simulator')" data-view="simulator" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Simulator
+          </button>
+          <button onclick="showView('knowledge-files')" data-view="knowledge-files" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+            Upload Files
+          </button>
+        </nav>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="flex-1 p-6 max-w-6xl">
+        <!-- Overview View -->
+        <div id="view-overview" class="view-panel">
+          <h2 class="text-xl font-semibold text-gray-900 mb-6">Dashboard Overview</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white rounded-xl border border-gray-200 p-5">
+              <div class="text-sm text-gray-500 mb-1">Total Messages</div>
+              <div id="statTotal" class="text-2xl font-bold text-gray-900">0</div>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-200 p-5">
+              <div class="text-sm text-gray-500 mb-1">FAQ Answered</div>
+              <div id="statFaq" class="text-2xl font-bold text-green-600">0</div>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-200 p-5">
+              <div class="text-sm text-gray-500 mb-1">Actions Pending</div>
+              <div id="statActions" class="text-2xl font-bold text-blue-600">0</div>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-200 p-5">
+              <div class="text-sm text-gray-500 mb-1">Needs Review</div>
+              <div id="statUnknown" class="text-2xl font-bold text-amber-600">0</div>
+            </div>
+          </div>
+
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Messages</h3>
+          <div id="recentMessages" class="space-y-3"></div>
+        </div>
+
+        <!-- All Messages View -->
+        <div id="view-messages" class="view-panel hidden">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-semibold text-gray-900">All Messages</h2>
+            <div class="flex gap-2">
+              <select id="messageFilter" onchange="loadMessages()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                <option value="">All</option>
+                <option value="faq">FAQ</option>
+                <option value="action">Actions</option>
+                <option value="unknown">Unknown</option>
+              </select>
+              <input id="messageSearch" type="text" placeholder="Search messages..." class="px-3 py-2 border border-gray-300 rounded-lg text-sm w-64 focus:ring-2 focus:ring-indigo-500 outline-none" onkeyup="if(event.key==='Enter')loadMessages()">
+            </div>
+          </div>
+          <div id="messagesList" class="space-y-3"></div>
+        </div>
+
+        <!-- Unknown View -->
+        <div id="view-unknown" class="view-panel hidden">
+          <h2 class="text-xl font-semibold text-gray-900 mb-2">Unknown / Needs Review</h2>
+          <p class="text-gray-500 mb-4 text-sm">Messages that could not be classified automatically. Review, comment, or dismiss.</p>
+          <div id="unknownList" class="space-y-3"></div>
+        </div>
+
+        <!-- Actions View -->
+        <div id="view-actions" class="view-panel hidden">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-semibold text-gray-900">Action Requests</h2>
+            <div class="flex items-center gap-3">
+              <select id="actionTypeFilter" onchange="loadActions()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                <option value="">All Types</option>
+                <option value="remove_host">Remove Host</option>
+                <option value="get_participants">Get Participants</option>
+              </select>
+              <select id="actionFilter" onchange="loadActions()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                <option value="">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="processing">Processing</option>
+                <option value="completed">Completed</option>
+                <option value="failed">Failed</option>
+              </select>
+            </div>
+          </div>
+          <div id="actionsList" class="space-y-6"></div>
+        </div>
+
+        <!-- FAQ View -->
+        <div id="view-faq" class="view-panel hidden">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-semibold text-gray-900">Knowledge Base FAQs</h2>
+            <button onclick="showAddFaqModal()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">Add FAQ</button>
+          </div>
+          <div id="faqList" class="space-y-3"></div>
+        </div>
+
+        <!-- Context Documents View -->
+        <div id="view-context" class="view-panel hidden">
+          <div class="flex items-center justify-between mb-6">
+            <div>
+              <h2 class="text-xl font-semibold text-gray-900">Reference Context</h2>
+              <p class="text-gray-500 text-sm mt-1">Links, documents, and notes that provide additional context to the AI (not structured as FAQ).</p>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="showAddContextModal()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">Add Context</button>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+              <svg class="w-10 h-10 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              <p class="text-gray-600 mb-2 text-sm">Upload a .docx or .txt file as reference context (not FAQ format)</p>
+              <input type="file" id="contextFileUpload" accept=".docx,.txt" class="hidden" onchange="uploadContextFile()">
+              <button onclick="document.getElementById('contextFileUpload').click()" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition">Upload Context File</button>
+            </div>
+          </div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Context Documents</h3>
+          <div id="contextList" class="space-y-3"></div>
+        </div>
+
+        <!-- Simulator View -->
+        <div id="view-simulator" class="view-panel hidden">
+          <h2 class="text-xl font-semibold text-gray-900 mb-1">Simulator</h2>
+          <p class="text-gray-500 text-sm mb-6">Test messages against the AI classification pipeline without posting in the real group chat.</p>
+
+          <!-- Chat Simulator -->
+          <div class="bg-white rounded-xl border border-gray-200 mb-6">
+            <div class="p-4 border-b border-gray-100">
+              <h3 class="font-semibold text-gray-900 text-sm">Chat Simulator</h3>
+            </div>
+            <div id="simChatLog" class="p-4 space-y-3 max-h-96 overflow-y-auto scrollbar-thin bg-gray-50"></div>
+            <div class="p-4 border-t border-gray-100 flex gap-2">
+              <input id="simInput" type="text" placeholder="Type a message to test..." class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" onkeydown="if(event.key==='Enter')simulateMessage()">
+              <button onclick="simulateMessage()" id="simSendBtn" class="bg-indigo-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">Send</button>
+            </div>
+          </div>
+
+          <!-- Backtest -->
+          <div class="bg-white rounded-xl border border-gray-200">
+            <div class="p-4 border-b border-gray-100">
+              <h3 class="font-semibold text-gray-900 text-sm">Backtest Existing Messages</h3>
+              <p class="text-gray-500 text-xs mt-1">Re-classify past messages with the current knowledge base to see what would change.</p>
+            </div>
+            <div class="p-4">
+              <div class="flex items-end gap-3 mb-4">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Filter</label>
+                  <select id="backtestFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <option value="">All messages</option>
+                    <option value="unknown">Unknown only</option>
+                    <option value="faq">FAQ only</option>
+                    <option value="action">Actions only</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Limit</label>
+                  <input id="backtestLimit" type="number" value="20" min="1" max="200" class="w-20 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <button onclick="runBacktest()" id="backtestBtn" class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">Run Backtest</button>
+              </div>
+              <div id="backtestSummary" class="hidden bg-gray-50 rounded-lg p-4 mb-4"></div>
+              <div id="backtestResults" class="space-y-3"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Knowledge Files View -->
+        <div id="view-knowledge-files" class="view-panel hidden">
+          <h2 class="text-xl font-semibold text-gray-900 mb-6">Upload Knowledge Base Files</h2>
+          <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+              <svg class="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+              <p class="text-gray-600 mb-2">Upload .docx or .txt files to add to the knowledge base</p>
+              <input type="file" id="fileUpload" accept=".docx,.txt" class="hidden" onchange="uploadFile()">
+              <button onclick="document.getElementById('fileUpload').click()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">Choose File</button>
+            </div>
+          </div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Uploaded Files</h3>
+          <div id="filesList" class="space-y-3"></div>
+          <button onclick="reloadKnowledgeBase()" class="mt-4 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition">Reload All Files</button>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Response Modal -->
+  <div id="responseModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg mx-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-2">Send Response</h3>
+      <p id="modalMessage" class="text-sm text-gray-500 mb-4 bg-gray-50 rounded-lg p-3"></p>
+      <textarea id="modalResponse" rows="4" class="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none" placeholder="Type your response..."></textarea>
+      <div class="flex justify-end gap-3 mt-4">
+        <button onclick="closeModal('responseModal')" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition">Cancel</button>
+        <button id="sendResponseBtn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Context Modal -->
+  <div id="contextModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg mx-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">Add Reference Context</h3>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+          <input id="contextTitle" type="text" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g., OBS Setup Guide Link">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Content</label>
+          <textarea id="contextContent" rows="5" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none" placeholder="Paste link, notes, or document content..."></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+          <select id="contextType" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+            <option value="general">General</option>
+            <option value="link">Link / URL</option>
+            <option value="guide">Guide / Instructions</option>
+            <option value="notes">Notes</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 mt-6">
+        <button onclick="closeModal('contextModal')" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition">Cancel</button>
+        <button onclick="addContext()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">Add Context</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add FAQ Modal -->
+  <div id="faqModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg mx-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">Add FAQ Entry</h3>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Question</label>
+          <input id="faqQuestion" type="text" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g., How do I join the group?">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Answer</label>
+          <textarea id="faqAnswer" rows="3" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none" placeholder="The answer to the question..."></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Keywords (comma-separated)</label>
+          <input id="faqKeywords" type="text" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="join, group, invite">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+          <input id="faqCategory" type="text" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="General">
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 mt-6">
+        <button onclick="closeModal('faqModal')" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition">Cancel</button>
+        <button onclick="addFaq()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">Add FAQ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Note Modal -->
+  <div id="noteModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg mx-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-2">Add Admin Note</h3>
+      <p id="noteModalContext" class="text-sm text-gray-500 mb-4 bg-gray-50 rounded-lg p-3"></p>
+      <div id="noteModalExisting" class="text-xs text-gray-600 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 whitespace-pre-line hidden"></div>
+      <textarea id="noteModalText" rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none" placeholder="Type your note..."></textarea>
+      <div class="flex justify-end gap-3 mt-4">
+        <button onclick="closeModal('noteModal')" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition">Cancel</button>
+        <button id="saveNoteBtn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">Save Note</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>
