@@ -15,40 +15,7 @@ function seed() {
   `);
   insertUser.run('admin', 'admin@example.com', passwordHash, 'admin');
 
-  const insertFaq = db.prepare(`
-    INSERT OR IGNORE INTO faqs (question, answer, keywords, category, source_file)
-    VALUES (?, ?, ?, ?, ?)
-  `);
-
-  const sampleFaqs = [
-    {
-      question: 'How do I join the group?',
-      answer: 'You can join the group by clicking the invite link shared by the admin or by being added directly by a group admin.',
-      keywords: 'join,group,invite,link,add',
-      category: 'General',
-      source_file: 'sample',
-    },
-    {
-      question: 'What are the group rules?',
-      answer: 'Please be respectful to all members, stay on topic, and avoid spam. Detailed rules are pinned in the group description.',
-      keywords: 'rules,guidelines,policy,behavior',
-      category: 'General',
-      source_file: 'sample',
-    },
-    {
-      question: 'Who are the admins?',
-      answer: 'You can see the list of admins by opening the group info. Admins have a special badge next to their name.',
-      keywords: 'admin,admins,moderator,contact',
-      category: 'General',
-      source_file: 'sample',
-    },
-  ];
-
-  for (const faq of sampleFaqs) {
-    insertFaq.run(faq.question, faq.answer, faq.keywords, faq.category, faq.source_file);
-  }
-
-  logger.info('Database seeded with default admin and sample FAQs');
+  logger.info('Database seeded with default admin user');
 }
 
 if (require.main === module) {

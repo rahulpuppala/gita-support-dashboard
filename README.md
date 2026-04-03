@@ -1,21 +1,68 @@
-# Gita Support Tool
+# Gita Support - Self-Maintaining WhatsApp Bot
 
-AI-powered WhatsApp & Email support tool that monitors group messages, matches FAQs from a `.docx` / `.txt` knowledge base, detects actionable requests, and provides an admin dashboard for managing inquiries.
+AI-powered WhatsApp support bot that learns from admin conversations and automatically maintains its knowledge base.
 
-## Features
+## What's New in v2.0
 
-- **WhatsApp Group Monitoring** — Listens to messages in a configured WhatsApp group using whatsapp-web.js
-- **Knowledge Base** — Upload `.docx` or `.txt` files to build an FAQ database; AI matches incoming messages against it
-- **AI Classification** — Messages are classified as FAQ (auto-reply), Action (remove host / get participants), or Unknown (needs review)
-- **Bot Detection Prevention** — Random 45–75 second delays + typing indicators before replying
-- **Admin Dashboard** — Real-time web UI to view messages grouped by type, respond manually, manage FAQs, and execute actions
-- **Email Webhook** — Exposes `POST /api/email/inbound` for Google Apps Script (or any service) to forward emails for classification
+This refactored version transforms the bot into a **self-maintaining system** that:
+- ✅ **Learns from admin conversations** - Automatically extracts Q&A pairs when admins answer questions
+- ✅ **3 simple outcomes** - Answer, Remove Host, or Ignore (no more manual review of every message)
+- ✅ **Data provenance** - Every answer cites its source (admin name, document, or website)
+- ✅ **Multi-source knowledge base** - Syncs from files, websites, and Google Drive
+- ✅ **Conflict detection** - Flags when new info contradicts existing FAQs
 
-## Quick Start
+## Core Features
 
-### 1. Install dependencies
+### 1. Automatic Learning from Admin Conversations
+When an admin replies to a host's question in the WhatsApp group, the bot:
+1. Analyzes the conversation context (last 15-20 messages)
+2. Extracts a clean Q&A pair using LLM
+3. Stores it as a "Suggested FAQ" for admin approval
+4. Makes it available to the bot immediately (even before approval)
 
+**Example:**
+```
+Host: "help with OBS recording"
+Admin (Goutham): "Set the OBS canvas resolution equal to your display resolution to capture the entire screen"
+→ Bot extracts: Q: "How do I set up OBS to record correctly?" A: "Set the OBS canvas..."
+```
+
+### 2. Three-Outcome Classification
+Every message is classified as:
+- **answer** - Bot has a good KB match → replies immediately (prod mode) or logs for review (test mode)
+- **remove_host** - User wants to be removed → bot replies "Your request has been noted" + queues for admin
+- **ignore** - Everything else → silently stored, no action
+
+### 3. Knowledge Base Sources
+The bot pulls knowledge from:
+- **Admin conversations** (auto-extracted Q&A pairs)
+- **Word documents** (.docx/.txt files in `knowledge-base/` folder)
+- **Websites** (configured URLs scraped daily)
+- **Google Drive** (syncs from a shared folder)
+- **Manual entries** (via dashboard)
+
+### 4. Data Provenance
+Every FAQ includes source attribution:
+```
+FAQ 42 [source: Goutham, March 15]:
+Q: Where can hosts find participant info?
+A: Log in to the portal, click Meetings at the top...
+```
+
+The bot naturally cites sources in responses:
+> "As Goutham mentioned, participant info is under the Meetings menu at the top..."
+
+## Installation
+
+### Prerequisites
+- Node.js 18+ (for OpenAI SDK and better-sqlite3)
+- OpenAI API key
+
+### Setup
 ```bash
+# Clone and install
+git clone <repo-url>
+cd gita-support
 npm install
 ```
 

@@ -15,43 +15,22 @@ function migrate() {
       sender_name TEXT,
       message TEXT NOT NULL,
       message_type TEXT DEFAULT 'text',
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      whatsapp_msg_id TEXT,
       classification TEXT,
       confidence REAL,
       response TEXT,
       response_sent INTEGER DEFAULT 0,
-      status TEXT DEFAULT 'pending',
+      status TEXT DEFAULT 'new',
+      context_used TEXT,
+      matched_faqs TEXT,
+      reasoning TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE TABLE IF NOT EXISTS actions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      chat_id INTEGER NOT NULL,
-      action_type TEXT NOT NULL,
-      action_data TEXT,
-      status TEXT DEFAULT 'pending',
-      result TEXT,
-      error_message TEXT,
-      assigned_to TEXT,
-      priority INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      completed_at DATETIME,
-      FOREIGN KEY (chat_id) REFERENCES chats(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS faqs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      question TEXT NOT NULL,
-      answer TEXT NOT NULL,
-      keywords TEXT,
-      category TEXT,
-      source_file TEXT,
-      confidence_threshold REAL DEFAULT 0.8,
-      usage_count INTEGER DEFAULT 0,
-      last_used DATETIME,
-      is_active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -66,30 +45,34 @@ function migrate() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE TABLE IF NOT EXISTS context_documents (
+    CREATE TABLE IF NOT EXISTS admin_authors (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      content TEXT NOT NULL,
-      doc_type TEXT DEFAULT 'general',
-      source_file TEXT,
-      is_active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      sender_id TEXT UNIQUE NOT NULL,
+      sender_name TEXT,
+      added_by TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE INDEX IF NOT EXISTS idx_chats_classification ON chats(classification);
+    CREATE TABLE IF NOT EXISTS actions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      chat_id INTEGER,
+      action_type TEXT NOT NULL,
+      sender_id TEXT NOT NULL,
+      sender_name TEXT,
+      group_id TEXT,
+      details TEXT,
+      status TEXT DEFAULT 'pending',
+      resolved_by TEXT,
+      resolved_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (chat_id) REFERENCES chats(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_actions_status ON actions(status);
     CREATE INDEX IF NOT EXISTS idx_chats_status ON chats(status);
     CREATE INDEX IF NOT EXISTS idx_chats_group_id ON chats(group_id);
-    CREATE INDEX IF NOT EXISTS idx_actions_status ON actions(status);
-    CREATE INDEX IF NOT EXISTS idx_actions_type ON actions(action_type);
-    CREATE INDEX IF NOT EXISTS idx_faqs_active ON faqs(is_active);
-    CREATE INDEX IF NOT EXISTS idx_context_docs_active ON context_documents(is_active);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_chats_whatsapp_msg_id ON chats(whatsapp_msg_id) WHERE whatsapp_msg_id IS NOT NULL;
   `);
-
-  // Add admin_notes column if missing (for existing DBs)
-  try {
-    db.exec(`ALTER TABLE actions ADD COLUMN admin_notes TEXT`);
-  } catch (_) { /* column already exists */ }
 
   logger.info('Database migration completed successfully');
 }
