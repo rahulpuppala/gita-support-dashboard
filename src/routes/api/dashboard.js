@@ -283,6 +283,26 @@ router.put('/knowledge', (req, res) => {
   }
 });
 
+router.post('/knowledge/append', (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content || !content.trim()) return res.status(400).json({ error: 'content is required' });
+
+    const db = getDb();
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'knowledge_base'").get();
+    const existing = row ? row.value : '';
+    const updated = existing ? `${existing}\n\n${content.trim()}` : content.trim();
+
+    db.prepare(`INSERT INTO settings (key, value, updated_at) VALUES ('knowledge_base', ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`).run(updated);
+
+    logger.info(`Knowledge base appended (${content.trim().length} chars)`);
+    res.json({ success: true, length: updated.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Test / Simulate ────────────────────────────────────
 router.post('/test', async (req, res) => {
   try {

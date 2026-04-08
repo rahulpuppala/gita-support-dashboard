@@ -51,8 +51,12 @@ async function start() {
 
     server.listen(PORT, () => logger.info(`Dashboard: http://localhost:${PORT}`));
 
-    logger.info('Starting WhatsApp client...');
-    await whatsappService.initialize(io);
+    if (process.env.SKIP_WHATSAPP === 'true') {
+      logger.info('SKIP_WHATSAPP=true — skipping WhatsApp client');
+    } else {
+      logger.info('Starting WhatsApp client...');
+      await whatsappService.initialize(io);
+    }
 
     logger.info('Gita Support Tool is running');
   } catch (err) {

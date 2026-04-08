@@ -189,6 +189,7 @@ async function loadResponses() {
     }
     empty.classList.add('hidden');
 
+    data.responses.forEach(r => { chatMessages[r.id] = r.message; chatResponses[r.id] = r.response; });
     container.innerHTML = data.responses.map(r => responseCard(r)).join('');
   } catch (err) {
     console.error('Failed to load responses:', err);
@@ -251,6 +252,9 @@ function responseCard(r) {
           <p class="text-gray-500 text-xs">${esc(r.reasoning || 'N/A')}</p>
         </div>
         ${renderContextWindow(r.context_used)}
+        <div class="pt-2 border-t border-gray-200">
+          <button onclick="event.stopPropagation(); openKbAppendModal(${r.id})" class="px-3 py-1.5 text-xs font-medium border border-indigo-300 text-indigo-600 rounded-lg hover:bg-indigo-50 transition">Add to Knowledge Base</button>
+        </div>
       </div>
     </div>`;
 }
@@ -360,6 +364,7 @@ async function loadIgnored() {
     empty.classList.add('hidden');
 
     document.getElementById('ignoredStatsLabel').textContent = `${data.total} ignored messages`;
+    data.ignored.forEach(r => { chatMessages[r.id] = r.message; });
     container.innerHTML = data.ignored.map(r => ignoredCard(r)).join('');
   } catch (err) {
     console.error('Failed to load ignored:', err);
@@ -397,6 +402,10 @@ function ignoredCard(r) {
           <p class="text-gray-500 text-xs">${esc(r.reasoning || 'N/A')}</p>
         </div>
         ${renderContextWindow(r.context_used)}
+        <div class="pt-2 border-t border-gray-200 flex gap-2">
+          <button onclick="event.stopPropagation(); openKbAppendModal(${r.id})" class="px-3 py-1.5 text-xs font-medium border border-indigo-300 text-indigo-600 rounded-lg hover:bg-indigo-50 transition">Add to Knowledge Base</button>
+          <button onclick="event.stopPropagation(); reevaluateIgnored(${r.id}, this)" class="px-3 py-1.5 text-xs font-medium border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 transition">Re-evaluate</button>
+        </div>
       </div>
     </div>`;
 }
@@ -489,6 +498,79 @@ async function resolveAction(id) {
     loadStats();
   } catch (err) {
     alert('Failed: ' + err.message);
+  }
+}
+
+// ─── KB Append Modal ────────────────────────────────────
+let kbAppendChatId = null;
+const chatMessages = {};
+const chatResponses = {};
+
+function openKbAppendModal(chatId) {
+  kbAppendChatId = chatId;
+  document.getElementById('kbAppendOriginal').textContent = chatMessages[chatId] || '';
+  const msg = chatMessages[chatId] || '';
+  const resp = chatResponses[chatId] || '';
+  document.getElementById('kbAppendText').value = resp ? `Q: ${msg}\nA: ${resp}` : '';
+  document.getElementById('kbAppendReeval').checked = true;
+  document.getElementById('kbAppendModal').classList.remove('hidden');
+  document.getElementById('kbAppendText').focus();
+}
+
+function closeKbAppendModal() {
+  document.getElementById('kbAppendModal').classList.add('hidden');
+  kbAppendChatId = null;
+}
+
+async function submitKbAppend() {
+  const text = document.getElementById('kbAppendText').value.trim();
+  if (!text) return alert('Please enter knowledge base content.');
+
+  const btn = document.getElementById('kbAppendSubmitBtn');
+  const reeval = document.getElementById('kbAppendReeval').checked;
+  btn.disabled = true;
+  btn.textContent = reeval ? 'Adding & Re-evaluating...' : 'Adding...';
+
+  try {
+    await api('/dashboard/knowledge/append', {
+      method: 'POST',
+      body: JSON.stringify({ content: text }),
+    });
+
+    if (reeval && kbAppendChatId) {
+      await api(`/dashboard/responses/${kbAppendChatId}/reevaluate`, { method: 'POST' });
+      showToast('Knowledge added & message re-evaluated');
+    } else {
+      showToast('Knowledge added');
+    }
+
+    closeKbAppendModal();
+    loadResponses();
+    loadIgnored();
+    loadStats();
+  } catch (err) {
+    alert('Failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Add & Re-evaluate';
+  }
+}
+
+async function reevaluateIgnored(id, btn) {
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Evaluating...';
+  try {
+    const data = await api(`/dashboard/responses/${id}/reevaluate`, { method: 'POST' });
+    showToast(data.response.status === 'ignored' ? 'Still ignored after re-evaluation' : 'Re-evaluated — response generated!');
+    loadResponses();
+    loadIgnored();
+    loadStats();
+  } catch (err) {
+    alert('Re-evaluate failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
   }
 }
 

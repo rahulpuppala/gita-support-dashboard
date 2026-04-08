@@ -6,3 +6,4 @@ logs/*.log
 knowledge-base/*.docx
 !knowledge-base/.gitkeep
 .DS_Store
+.wwebjs_cache/2.3000.1036910799.html
