@@ -16,5 +16,10 @@ npm install
 echo "Restarting app..."
 pm2 restart gita-support
 
-echo "Tailing logs (Ctrl+C to stop)..."
-pm2 logs gita-support --lines 30
+echo "Tailing app logs (logs/combined.log). Ctrl+C to stop..."
+if [ -f ./logs/combined.log ]; then
+  tail -n 50 -f ./logs/combined.log
+else
+  echo "combined.log not found yet; falling back to pm2 logs"
+  pm2 logs gita-support --lines 30
+fi
