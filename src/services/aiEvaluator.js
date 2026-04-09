@@ -76,11 +76,11 @@ function buildPrompt(message, senderName, knowledgeBlob, contextWindow, replyCon
 
   const template = getPromptTemplate();
   return template
-    .replace('{{KNOWLEDGE_BASE}}', knowledgeBlob || '(No knowledge base configured yet.)')
-    .replace('{{CONTEXT_WINDOW}}', contextSection)
-    .replace('{{REPLY_CONTEXT}}', replySection)
-    .replace('{{SENDER_NAME}}', senderName)
-    .replace('{{MESSAGE}}', message);
+    .replaceAll('{{KNOWLEDGE_BASE}}', knowledgeBlob || '(No knowledge base configured yet.)')
+    .replaceAll('{{CONTEXT_WINDOW}}', contextSection)
+    .replaceAll('{{REPLY_CONTEXT}}', replySection)
+    .replaceAll('{{SENDER_NAME}}', senderName)
+    .replaceAll('{{MESSAGE}}', message);
 }
 
 async function evaluateMessage(message, senderName, contextWindow, knowledgeBlob, replyContext) {

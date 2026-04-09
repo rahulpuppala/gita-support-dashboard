@@ -261,6 +261,7 @@ function responseCard(r) {
             <div class="flex items-center gap-2 mb-1">
               <span class="px-1.5 py-0.5 text-xs font-mono font-medium bg-gray-200 text-gray-600 rounded">#${r.id}</span>
               <span class="text-sm font-medium text-gray-900">${esc(r.sender_name)}</span>
+              ${r.group_name ? `<span class="px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-600 rounded-full" title="${esc(r.group_name)}">${esc(shortGroupName(r.group_name))}</span>` : ''}
               ${statusBadge}
               <span class="text-xs text-gray-400">${confidence} confidence</span>
               ${sendBtn}
@@ -469,6 +470,7 @@ function ignoredCard(r) {
             <div class="flex items-center gap-2 mb-1">
               <span class="px-1.5 py-0.5 text-xs font-mono font-medium bg-gray-200 text-gray-600 rounded">#${r.id}</span>
               <span class="text-sm font-medium text-gray-900">${esc(r.sender_name)}</span>
+              ${r.group_name ? `<span class="px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-600 rounded-full" title="${esc(r.group_name)}">${esc(shortGroupName(r.group_name))}</span>` : ''}
               <span class="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-500 rounded-full">Ignored</span>
               <span class="text-xs text-gray-400">${confidence} confidence</span>
             </div>
@@ -548,7 +550,7 @@ function actionCard(a) {
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-1">
               <span class="text-sm font-medium text-gray-900">${esc(a.sender_name)}</span>
-              <span class="text-xs text-gray-400 font-mono">${esc(a.sender_id || '')}</span>
+              ${a.group_name ? `<span class="px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-600 rounded-full" title="${esc(a.group_name)}">${esc(shortGroupName(a.group_name))}</span>` : ''}
               <span class="px-2 py-0.5 text-xs font-medium ${typeColor} rounded-full">${typeLabel}</span>
               ${statusBadge}
               ${resolveBtn}
@@ -952,6 +954,12 @@ function testResultCard(message, senderName, r) {
 // ─── Utilities ──────────────────────────────────────────
 function closeModal(id) {
   document.getElementById(id).classList.add('hidden');
+}
+
+function shortGroupName(name) {
+  if (!name) return '';
+  // Remove common filler words to shorten, keep it recognizable
+  return name.length > 25 ? name.substring(0, 22) + '...' : name;
 }
 
 function esc(str) {

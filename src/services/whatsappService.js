@@ -17,18 +17,21 @@ function getKnowledgeBlob() {
 
 let client = null;
 let isReady = false;
-let monitoredGroupId = null;
+const monitoredGroupIds = new Set();
 let currentMode = 'test';
 let socketIO = null;
 
-const MONITORED_GROUP = 'CGS Webex Hosts Only';
+const MONITORED_GROUPS = [
+  'CGS Webex Hosts Only',
+  // Add more group names here
+];
 const MIN_WORD_COUNT = 5;
 const SENDER_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes between bot replies to same sender
 const senderLastReply = new Map(); // senderId -> timestamp of last bot reply
 
 function isConnected() { return isReady; }
 function getMode() { return currentMode; }
-function getMonitoredGroupName() { return MONITORED_GROUP; }
+function getMonitoredGroupNames() { return MONITORED_GROUPS; }
 
 async function setMode(mode) {
   if (mode !== 'test' && mode !== 'prod') throw new Error('Invalid mode');
@@ -36,16 +39,18 @@ async function setMode(mode) {
 
   if (client && isReady) {
     const chats = await client.getChats();
-    const group = chats.find((c) => c.isGroup && c.name === MONITORED_GROUP);
-    if (group) {
-      monitoredGroupId = group.id._serialized;
-      logger.info(`Switched to ${mode} mode — monitoring "${MONITORED_GROUP}"`);
-    } else {
-      logger.warn(`Could not find group "${MONITORED_GROUP}"`);
-      monitoredGroupId = null;
+    monitoredGroupIds.clear();
+    for (const name of MONITORED_GROUPS) {
+      const group = chats.find((c) => c.isGroup && c.name === name);
+      if (group) {
+        monitoredGroupIds.add(group.id._serialized);
+        logger.info(`Switched to ${mode} mode — monitoring "${name}"`);
+      } else {
+        logger.warn(`Could not find group "${name}"`);
+      }
     }
   }
-  return { mode: currentMode, group_name: MONITORED_GROUP };
+  return { mode: currentMode, group_names: MONITORED_GROUPS };
 }
 
 async function initialize(io) {
@@ -108,8 +113,8 @@ async function handleIncomingMessage(msg) {
 
   const chat = await msg.getChat();
 
-  if (monitoredGroupId) {
-    if (!chat.isGroup || chat.id._serialized !== monitoredGroupId) return;
+  if (monitoredGroupIds.size > 0) {
+    if (!chat.isGroup || !monitoredGroupIds.has(chat.id._serialized)) return;
   } else if (!chat.isGroup) {
     return;
   }
@@ -318,4 +323,4 @@ async function sendMessageToGroup(groupId, message, quotedMsgId) {
   await chat.sendMessage(taggedMessage, options);
 }
 
-module.exports = { initialize, isConnected, getMode, setMode, getMonitoredGroupName, sendMessageToGroup };
+module.exports = { initialize, isConnected, getMode, setMode, getMonitoredGroupNames, sendMessageToGroup };

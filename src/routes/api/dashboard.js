@@ -217,7 +217,7 @@ router.post('/responses/:id/reevaluate', async (req, res) => {
 
 // ─── Mode ───────────────────────────────────────────────
 router.get('/mode', (req, res) => {
-  res.json({ mode: whatsappService.getMode(), group_name: whatsappService.getMonitoredGroupName() });
+  res.json({ mode: whatsappService.getMode(), group_names: whatsappService.getMonitoredGroupNames() });
 });
 
 router.post('/mode', async (req, res) => {
