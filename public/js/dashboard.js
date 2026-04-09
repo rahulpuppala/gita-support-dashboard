@@ -116,6 +116,7 @@ function showView(view) {
   if (view === 'ignored') loadIgnored();
   if (view === 'actions') loadActions();
   if (view === 'faqs') loadKnowledge();
+  if (view === 'prompt') loadPrompt();
   if (view === 'settings') loadAdminAuthors();
   if (view === 'test') document.getElementById('testInput').focus();
 }
@@ -640,6 +641,92 @@ async function saveKnowledge() {
   } finally {
     btn.disabled = false;
     btn.textContent = 'Save';
+  }
+}
+
+// ─── LLM Prompt ────────────────────────────────────────
+let promptOriginalContent = '';
+let promptDefaultTemplate = '';
+
+async function loadPrompt() {
+  try {
+    const data = await api('/dashboard/prompt');
+    const textarea = document.getElementById('promptBlob');
+    textarea.value = data.content || '';
+    promptDefaultTemplate = data.defaultTemplate || '';
+    document.getElementById('promptCharCount').textContent = (data.content || '').length.toLocaleString() + ' chars';
+    if (data.updated_at) {
+      document.getElementById('promptLastSaved').textContent = 'Last saved: ' + new Date(data.updated_at).toLocaleString();
+    } else {
+      document.getElementById('promptLastSaved').textContent = 'Using default template';
+    }
+    document.getElementById('promptCustomBadge').classList.toggle('hidden', !data.isCustom);
+  } catch (err) {
+    console.error('Failed to load prompt:', err);
+  }
+}
+
+function togglePromptEdit() {
+  const textarea = document.getElementById('promptBlob');
+  promptOriginalContent = textarea.value;
+  textarea.readOnly = false;
+  textarea.classList.remove('bg-gray-50', 'cursor-default');
+  textarea.classList.add('bg-white');
+  textarea.focus();
+  document.getElementById('promptEditBtn').classList.add('hidden');
+  document.getElementById('promptSaveBtn').classList.remove('hidden');
+  document.getElementById('promptCancelBtn').classList.remove('hidden');
+}
+
+function cancelPromptEdit() {
+  const textarea = document.getElementById('promptBlob');
+  textarea.value = promptOriginalContent;
+  textarea.readOnly = true;
+  textarea.classList.add('bg-gray-50', 'cursor-default');
+  textarea.classList.remove('bg-white');
+  document.getElementById('promptEditBtn').classList.remove('hidden');
+  document.getElementById('promptSaveBtn').classList.add('hidden');
+  document.getElementById('promptCancelBtn').classList.add('hidden');
+  document.getElementById('promptCharCount').textContent = promptOriginalContent.length.toLocaleString() + ' chars';
+}
+
+function exitPromptEditMode() {
+  const textarea = document.getElementById('promptBlob');
+  textarea.readOnly = true;
+  textarea.classList.add('bg-gray-50', 'cursor-default');
+  textarea.classList.remove('bg-white');
+  document.getElementById('promptEditBtn').classList.remove('hidden');
+  document.getElementById('promptSaveBtn').classList.add('hidden');
+  document.getElementById('promptCancelBtn').classList.add('hidden');
+}
+
+async function savePrompt() {
+  const content = document.getElementById('promptBlob').value;
+  const btn = document.getElementById('promptSaveBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+  try {
+    await api('/dashboard/prompt', { method: 'PUT', body: JSON.stringify({ content }) });
+    document.getElementById('promptLastSaved').textContent = 'Last saved: ' + new Date().toLocaleString();
+    document.getElementById('promptCustomBadge').classList.remove('hidden');
+    showToast('LLM prompt saved — takes effect on next message');
+    exitPromptEditMode();
+  } catch (err) {
+    alert('Failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save';
+  }
+}
+
+async function resetPrompt() {
+  if (!confirm('Reset the LLM prompt to the default template? Your custom prompt will be deleted.')) return;
+  try {
+    await api('/dashboard/prompt/reset', { method: 'POST' });
+    showToast('Prompt reset to default');
+    loadPrompt();
+  } catch (err) {
+    alert('Reset failed: ' + err.message);
   }
 }
 

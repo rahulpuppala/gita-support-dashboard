@@ -1,4 +1,5 @@
 const OpenAI = require('openai');
+const { getDb } = require('../config/database');
 const logger = require('../utils/logger');
 
 let openai = null;
@@ -10,22 +11,12 @@ function getClient() {
   return openai;
 }
 
-function buildPrompt(message, senderName, knowledgeBlob, contextWindow, replyContext) {
-  let contextSection = '';
-  if (contextWindow && contextWindow.length > 0) {
-    contextSection = `\n\n## Recent Conversation Context\nThese are recent messages in the group. Messages from the same person who asked the question are marked with ★.\n`;
-    contextSection += contextWindow
-      .map(m => {
-        const marker = m.same_sender ? '★ ' : '';
-        return `${marker}[${m.sender_name}]: ${m.message}`;
-      })
-      .join('\n');
-  }
-
-  return `You are a bot that answers questions in a WhatsApp group where Webex hosts ask questions. You answer using only the facts below.
+const DEFAULT_PROMPT_TEMPLATE = `You are a bot that answers questions in a WhatsApp group where Webex hosts ask questions. You answer using only the facts below.
 
 ## Knowledge Base
-${knowledgeBlob || '(No knowledge base configured yet.)'}${contextSection}
+{{KNOWLEDGE_BASE}}
+
+{{CONTEXT_WINDOW}}
 
 ## Your Task
 Classify this message into one of three actions, then respond accordingly.
@@ -44,12 +35,9 @@ Classify this message into one of three actions, then respond accordingly.
 - Use the conversation context to understand what the person is really asking about.
 - For **remove_host**: acknowledge their request and let them know the admin team will follow up with them.
 
-${replyContext ? `## Replying To
-This message is a reply to a previous message from ${replyContext.sender_name}:
-"${replyContext.message}"
-
-` : ''}## Message from ${senderName}
-"${message}"
+{{REPLY_CONTEXT}}
+## Message from {{SENDER_NAME}}
+"{{MESSAGE}}"
 
 Respond ONLY with valid JSON:
 {
@@ -58,6 +46,41 @@ Respond ONLY with valid JSON:
   "response": "Your reply if action is not ignore, null otherwise",
   "reasoning": "Brief explanation of your decision"
 }`;
+
+function getPromptTemplate() {
+  try {
+    const db = getDb();
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'llm_prompt'").get();
+    return row ? row.value : DEFAULT_PROMPT_TEMPLATE;
+  } catch {
+    return DEFAULT_PROMPT_TEMPLATE;
+  }
+}
+
+function buildPrompt(message, senderName, knowledgeBlob, contextWindow, replyContext) {
+  let contextSection = '';
+  if (contextWindow && contextWindow.length > 0) {
+    contextSection = `## Recent Conversation Context\nThese are recent messages in the group. Messages from the same person who asked the question are marked with ★.\n`;
+    contextSection += contextWindow
+      .map(m => {
+        const marker = m.same_sender ? '★ ' : '';
+        return `${marker}[${m.sender_name}]: ${m.message}`;
+      })
+      .join('\n');
+  }
+
+  let replySection = '';
+  if (replyContext) {
+    replySection = `## Replying To\nThis message is a reply to a previous message from ${replyContext.sender_name}:\n"${replyContext.message}"\n\n`;
+  }
+
+  const template = getPromptTemplate();
+  return template
+    .replace('{{KNOWLEDGE_BASE}}', knowledgeBlob || '(No knowledge base configured yet.)')
+    .replace('{{CONTEXT_WINDOW}}', contextSection)
+    .replace('{{REPLY_CONTEXT}}', replySection)
+    .replace('{{SENDER_NAME}}', senderName)
+    .replace('{{MESSAGE}}', message);
 }
 
 async function evaluateMessage(message, senderName, contextWindow, knowledgeBlob, replyContext) {
@@ -106,4 +129,4 @@ async function evaluateMessage(message, senderName, contextWindow, knowledgeBlob
   }
 }
 
-module.exports = { evaluateMessage };
+module.exports = { evaluateMessage, DEFAULT_PROMPT_TEMPLATE };

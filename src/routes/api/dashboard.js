@@ -304,6 +304,48 @@ router.post('/knowledge/append', (req, res) => {
   }
 });
 
+// ─── LLM Prompt ────────────────────────────────────────
+router.get('/prompt', (req, res) => {
+  try {
+    const db = getDb();
+    const row = db.prepare("SELECT value, updated_at FROM settings WHERE key = 'llm_prompt'").get();
+    const { DEFAULT_PROMPT_TEMPLATE } = require('../../services/aiEvaluator');
+    res.json({
+      content: row ? row.value : DEFAULT_PROMPT_TEMPLATE,
+      isCustom: !!row,
+      updated_at: row ? row.updated_at : null,
+      defaultTemplate: DEFAULT_PROMPT_TEMPLATE,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/prompt', (req, res) => {
+  try {
+    const { content } = req.body;
+    if (content === undefined) return res.status(400).json({ error: 'content is required' });
+    const db = getDb();
+    db.prepare(`INSERT INTO settings (key, value, updated_at) VALUES ('llm_prompt', ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`).run(content);
+    logger.info(`LLM prompt updated (${content.length} chars)`);
+    res.json({ success: true, length: content.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/prompt/reset', (req, res) => {
+  try {
+    const db = getDb();
+    db.prepare("DELETE FROM settings WHERE key = 'llm_prompt'").run();
+    logger.info('LLM prompt reset to default');
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── KB Enrichment ──────────────────────────────────────
 router.post('/knowledge/enrich', async (req, res) => {
   try {
