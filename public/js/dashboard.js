@@ -177,23 +177,54 @@ async function toggleMode() {
 }
 
 // ─── Responses ──────────────────────────────────────────
+const PAGE_SIZE = 50;
+let responsesOffset = 0;
+let responsesTotal = 0;
+let ignoredOffset = 0;
+let ignoredTotal = 0;
+
 async function loadResponses() {
+  responsesOffset = 0;
   try {
-    const data = await api('/dashboard/responses?limit=50');
+    const data = await api(`/dashboard/responses?limit=${PAGE_SIZE}&offset=0`);
     const container = document.getElementById('responsesList');
     const empty = document.getElementById('responsesEmpty');
+
+    responsesTotal = data.total || 0;
 
     if (!data.responses.length) {
       container.innerHTML = '';
       empty.classList.remove('hidden');
+      document.getElementById('responsesLoadMore').classList.add('hidden');
       return;
     }
     empty.classList.add('hidden');
 
     data.responses.forEach(r => { chatMessages[r.id] = r.message; chatResponses[r.id] = r.response; });
     container.innerHTML = data.responses.map(r => responseCard(r)).join('');
+    responsesOffset = data.responses.length;
+    document.getElementById('responsesLoadMore').classList.toggle('hidden', responsesOffset >= responsesTotal);
   } catch (err) {
     console.error('Failed to load responses:', err);
+  }
+}
+
+async function loadMoreResponses() {
+  const btn = document.getElementById('responsesLoadMoreBtn');
+  btn.disabled = true;
+  btn.textContent = 'Loading...';
+  try {
+    const data = await api(`/dashboard/responses?limit=${PAGE_SIZE}&offset=${responsesOffset}`);
+    const container = document.getElementById('responsesList');
+    data.responses.forEach(r => { chatMessages[r.id] = r.message; chatResponses[r.id] = r.response; });
+    container.insertAdjacentHTML('beforeend', data.responses.map(r => responseCard(r)).join(''));
+    responsesOffset += data.responses.length;
+    document.getElementById('responsesLoadMore').classList.toggle('hidden', responsesOffset >= responsesTotal);
+  } catch (err) {
+    console.error('Failed to load more responses:', err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Load More';
   }
 }
 
@@ -352,14 +383,18 @@ async function sendEdited(id) {
 
 // ─── Ignored ─────────────────────────────────────────
 async function loadIgnored() {
+  ignoredOffset = 0;
   try {
-    const data = await api('/dashboard/ignored?limit=50');
+    const data = await api(`/dashboard/ignored?limit=${PAGE_SIZE}&offset=0`);
     const container = document.getElementById('ignoredList');
     const empty = document.getElementById('ignoredEmpty');
+
+    ignoredTotal = data.total || 0;
 
     if (!data.ignored.length) {
       container.innerHTML = '';
       empty.classList.remove('hidden');
+      document.getElementById('ignoredLoadMore').classList.add('hidden');
       return;
     }
     empty.classList.add('hidden');
@@ -367,8 +402,29 @@ async function loadIgnored() {
     document.getElementById('ignoredStatsLabel').textContent = `${data.total} ignored messages`;
     data.ignored.forEach(r => { chatMessages[r.id] = r.message; });
     container.innerHTML = data.ignored.map(r => ignoredCard(r)).join('');
+    ignoredOffset = data.ignored.length;
+    document.getElementById('ignoredLoadMore').classList.toggle('hidden', ignoredOffset >= ignoredTotal);
   } catch (err) {
     console.error('Failed to load ignored:', err);
+  }
+}
+
+async function loadMoreIgnored() {
+  const btn = document.getElementById('ignoredLoadMoreBtn');
+  btn.disabled = true;
+  btn.textContent = 'Loading...';
+  try {
+    const data = await api(`/dashboard/ignored?limit=${PAGE_SIZE}&offset=${ignoredOffset}`);
+    const container = document.getElementById('ignoredList');
+    data.ignored.forEach(r => { chatMessages[r.id] = r.message; });
+    container.insertAdjacentHTML('beforeend', data.ignored.map(r => ignoredCard(r)).join(''));
+    ignoredOffset += data.ignored.length;
+    document.getElementById('ignoredLoadMore').classList.toggle('hidden', ignoredOffset >= ignoredTotal);
+  } catch (err) {
+    console.error('Failed to load more ignored:', err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Load More';
   }
 }
 
