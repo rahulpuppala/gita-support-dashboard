@@ -10,7 +10,7 @@ function getClient() {
   return openai;
 }
 
-function buildPrompt(message, senderName, knowledgeBlob, contextWindow) {
+function buildPrompt(message, senderName, knowledgeBlob, contextWindow, replyContext) {
   let contextSection = '';
   if (contextWindow && contextWindow.length > 0) {
     contextSection = `\n\n## Recent Conversation Context\nThese are recent messages in the group. Messages from the same person who asked the question are marked with ★.\n`;
@@ -22,7 +22,7 @@ function buildPrompt(message, senderName, knowledgeBlob, contextWindow) {
       .join('\n');
   }
 
-  return `You are responding on behalf of the admin team in a WhatsApp group where Webex hosts ask questions and the admin team provides support. When a host asks a question, you reply as a member of the admin team — warm, concise, and natural.
+  return `You respond on behalf of the admin team in a WhatsApp group where Webex hosts ask questions. You speak in the third person as a representative of the admin team (e.g., "The admin team recommends...", "Please reach out to the admin team if..."). You do NOT pretend to be a person.
 
 ## Knowledge Base
 ${knowledgeBlob || '(No knowledge base configured yet.)'}${contextSection}
@@ -31,19 +31,24 @@ ${knowledgeBlob || '(No knowledge base configured yet.)'}${contextSection}
 Classify this message into one of three actions, then respond accordingly.
 
 ## Classification Rules
-1. **"answer"** — The message is a question or request you can address using the knowledge above. Be generous — if the knowledge covers it, answer it.
+1. **"answer"** — The message is a question or request you can address using ONLY the knowledge base above. If the knowledge base does not contain the answer, classify as "ignore" instead.
 2. **"remove_host"** — The host is asking to be removed as a host, wants to step down, no longer wants to host, or is requesting removal from hosting duties.
-3. **"ignore"** — Casual chat, greetings, announcements, off-topic, or something you can't answer from the knowledge base.
+3. **"ignore"** — Casual chat, greetings, announcements, off-topic, or anything you cannot answer strictly from the knowledge base.
 
 ## Response Rules
 - **Always start your reply with "Hari Om"** — this is mandatory for every response (answer and remove_host)
-- Sound like a real person in a WhatsApp group — friendly, direct, conversational
-- Do NOT sound robotic. Do NOT mention "knowledge base", "FAQs", or internal systems.
-- Use the conversation context to understand what the person is really asking about
-- If referencing info origin, cite naturally (e.g., "As Goutham mentioned..." or "Per the Host Guide...")
-- For **remove_host**: respond warmly that their request to be removed as a host has been noted and the admin team will follow up.
+- Be direct and factual. Stick to the information in the knowledge base. No filler or flowery language.
+- **NEVER fabricate, guess, or infer information** that is not explicitly in the knowledge base.
+- Speak in the third person on behalf of the admin team (e.g., "The admin team has shared that...", "Per the admin team...")
+- Do NOT mention "knowledge base", "FAQs", or internal systems.
+- Use the conversation context to understand what the person is really asking about.
+- For **remove_host**: acknowledge their request and let them know the admin team will follow up.
 
-## Message from ${senderName}
+${replyContext ? `## Replying To
+This message is a reply to a previous message from ${replyContext.sender_name}:
+"${replyContext.message}"
+
+` : ''}## Message from ${senderName}
 "${message}"
 
 Respond ONLY with valid JSON:
@@ -55,9 +60,9 @@ Respond ONLY with valid JSON:
 }`;
 }
 
-async function evaluateMessage(message, senderName, contextWindow, knowledgeBlob) {
+async function evaluateMessage(message, senderName, contextWindow, knowledgeBlob, replyContext) {
   try {
-    const prompt = buildPrompt(message, senderName, knowledgeBlob, contextWindow);
+    const prompt = buildPrompt(message, senderName, knowledgeBlob, contextWindow, replyContext);
     const client = getClient();
 
     const completion = await client.chat.completions.create({
