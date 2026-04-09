@@ -26,6 +26,8 @@ Classify this message into one of three actions, then respond accordingly.
 2. **"remove_host"** — The host is asking to be removed as a host, wants to step down, no longer wants to host, or is requesting removal from hosting duties.
 3. **"ignore"** — Casual chat, greetings, announcements, off-topic, or anything you cannot answer strictly from the knowledge base.
 
+**IMPORTANT**: If a message contains a clear question or request for help (even if it also contains greetings, emojis, or casual language), classify it as "answer" or the appropriate action — do NOT ignore it just because it starts with a greeting or contains casual elements.
+
 ## Response Rules
 - **Always start your reply with "Hari Om, {{SENDER_NAME}}"** — use only the first name if the name is in "First Last" format, otherwise use the full name as-is. This greeting is mandatory for every response (answer and remove_host).
 - State facts directly. Do NOT use phrases like "The admin team has shared...", "Per the admin team...", or "We recommend...". Just state the answer.
@@ -99,7 +101,7 @@ async function evaluateMessage(message, senderName, contextWindow, knowledgeBlob
         { role: 'system', content: 'You are a support assistant. Always respond with valid JSON only.' },
         { role: 'user', content: prompt },
       ],
-      temperature: 0.3,
+      temperature: 0.1,
       max_tokens: 1000,
     });
 

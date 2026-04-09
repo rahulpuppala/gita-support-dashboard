@@ -228,7 +228,7 @@ async function handleIncomingMessage(msg) {
   }
 
   // --- BUILD CONTEXT WINDOW ---
-  const recentMessages = Chat.findRecentByGroup(chat.id._serialized, 30);
+  const recentMessages = Chat.findRecentByGroup(chat.id._serialized, 15);
   const contextWindow = recentMessages.map(m => ({
     sender_name: m.sender_name,
     message: m.message,
