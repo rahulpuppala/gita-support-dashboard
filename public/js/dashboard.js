@@ -96,16 +96,21 @@ async function checkWhatsAppStatus() {
 }
 
 // ─── Toast ──────────────────────────────────────────────
-function showToast(msg, type = 'info') {
+function showToast(msg, type = 'info', onClick = null) {
   const t = document.createElement('div');
   if (type === 'warn') {
     t.className = 'fixed top-4 left-1/2 -translate-x-1/2 bg-amber-500 text-white px-6 py-3 rounded-lg text-sm font-medium shadow-lg z-50 fade-in';
-    setTimeout(() => t.remove(), 4000);
+    setTimeout(() => t.remove(), 5000);
   } else {
     t.className = 'fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2.5 rounded-lg text-sm shadow-lg z-50 fade-in';
     setTimeout(() => t.remove(), 3000);
   }
   t.textContent = msg;
+  if (onClick) {
+    t.style.cursor = 'pointer';
+    t.textContent = msg + ' (click to view)';
+    t.addEventListener('click', () => { t.remove(); onClick(); });
+  }
   document.body.appendChild(t);
 }
 
@@ -254,8 +259,8 @@ function responseCard(r) {
         <div class="flex items-start justify-between gap-4">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-1">
+              <span class="px-1.5 py-0.5 text-xs font-mono font-medium bg-gray-200 text-gray-600 rounded">#${r.id}</span>
               <span class="text-sm font-medium text-gray-900">${esc(r.sender_name)}</span>
-              <span class="text-xs text-gray-400 font-mono">${esc(r.sender_id || '')}</span>
               ${statusBadge}
               <span class="text-xs text-gray-400">${confidence} confidence</span>
               ${sendBtn}
@@ -336,11 +341,22 @@ async function reevaluateResponse(id, btn) {
     const scrollY = window.scrollY;
     const data = await api(`/dashboard/responses/${id}/reevaluate`, { method: 'POST' });
     if (data.response.status === 'ignored') {
-      showToast('Re-evaluated — moved to Ignored tab', 'warn');
       loadResponses();
       loadStats();
+      showToast(`#${id} re-evaluated — moved to Ignored tab`, 'warn', async () => {
+        showView('ignored');
+        await loadIgnored();
+        requestAnimationFrame(() => {
+          const card = document.querySelector(`#detail-${id}`)?.parentElement;
+          if (card) {
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            card.classList.add('ring-2', 'ring-amber-400');
+            setTimeout(() => card.classList.remove('ring-2', 'ring-amber-400'), 3000);
+          }
+        });
+      });
     } else {
-      showToast('Re-evaluated — new response ready');
+      showToast(`#${id} re-evaluated — new response ready`);
       loadResponses();
       loadStats();
       requestAnimationFrame(() => window.scrollTo(0, scrollY));
@@ -451,8 +467,8 @@ function ignoredCard(r) {
         <div class="flex items-start justify-between gap-4">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-1">
+              <span class="px-1.5 py-0.5 text-xs font-mono font-medium bg-gray-200 text-gray-600 rounded">#${r.id}</span>
               <span class="text-sm font-medium text-gray-900">${esc(r.sender_name)}</span>
-              <span class="text-xs text-gray-400 font-mono">${esc(r.sender_id || '')}</span>
               <span class="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-500 rounded-full">Ignored</span>
               <span class="text-xs text-gray-400">${confidence} confidence</span>
             </div>
