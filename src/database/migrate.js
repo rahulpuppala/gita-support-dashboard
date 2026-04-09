@@ -68,11 +68,47 @@ function migrate() {
       FOREIGN KEY (chat_id) REFERENCES chats(id)
     );
 
+    CREATE TABLE IF NOT EXISTS emails (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      gmail_msg_id TEXT UNIQUE NOT NULL,
+      gmail_thread_id TEXT NOT NULL,
+      from_address TEXT,
+      from_name TEXT,
+      to_address TEXT,
+      subject TEXT,
+      body_text TEXT,
+      body_snippet TEXT,
+      received_at DATETIME,
+      labels TEXT,
+      classification TEXT,
+      confidence REAL,
+      response TEXT,
+      gmail_draft_id TEXT,
+      reasoning TEXT,
+      status TEXT DEFAULT 'new',
+      duplicate_of INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (duplicate_of) REFERENCES emails(id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_actions_status ON actions(status);
     CREATE INDEX IF NOT EXISTS idx_chats_status ON chats(status);
     CREATE INDEX IF NOT EXISTS idx_chats_group_id ON chats(group_id);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_chats_whatsapp_msg_id ON chats(whatsapp_msg_id) WHERE whatsapp_msg_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_emails_thread_id ON emails(gmail_thread_id);
+    CREATE INDEX IF NOT EXISTS idx_emails_status ON emails(status);
+    CREATE INDEX IF NOT EXISTS idx_emails_from ON emails(from_address);
   `);
+
+  // Add verified column to chats (idempotent)
+  try {
+    db.exec(`ALTER TABLE chats ADD COLUMN verified INTEGER DEFAULT 0`);
+    db.exec(`ALTER TABLE chats ADD COLUMN verified_by TEXT`);
+    db.exec(`ALTER TABLE chats ADD COLUMN verified_at DATETIME`);
+  } catch (_) {
+    // columns already exist
+  }
 
   logger.info('Database migration completed successfully');
 }

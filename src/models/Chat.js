@@ -80,6 +80,18 @@ class Chat {
     return row.count;
   }
 
+  static markVerified(id, verifiedBy) {
+    const db = getDb();
+    db.prepare(`UPDATE chats SET verified = 1, verified_by = ?, verified_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(verifiedBy, id);
+    return this.findById(id);
+  }
+
+  static unverify(id) {
+    const db = getDb();
+    db.prepare(`UPDATE chats SET verified = 0, verified_by = NULL, verified_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(id);
+    return this.findById(id);
+  }
+
   static findRecentByGroup(groupId, limit = 30) {
     const db = getDb();
     if (groupId) {

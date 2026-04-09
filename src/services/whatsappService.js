@@ -257,13 +257,21 @@ async function handleIncomingMessage(msg) {
       status: 'sent',
     });
 
+    const extracted = result.extracted_info || {};
     const actionRecord = Action.create({
       chat_id: chatRecord.id,
       action_type: action,
       sender_id: senderPhone || senderId,
-      sender_name: senderName,
+      sender_name: extracted.host_name || senderName,
       group_id: chat.id._serialized,
-      details: { message: msg.body, reasoning: result.reasoning },
+      details: {
+        message: msg.body,
+        reasoning: result.reasoning,
+        source: 'whatsapp',
+        host_name: extracted.host_name || senderName || null,
+        host_phone: extracted.host_phone || senderPhone || null,
+        host_email: extracted.host_email || null,
+      },
     });
 
     // Always auto-send remove_host responses regardless of mode

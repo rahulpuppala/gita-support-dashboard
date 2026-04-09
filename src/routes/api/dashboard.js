@@ -215,6 +215,26 @@ router.post('/responses/:id/reevaluate', async (req, res) => {
   }
 });
 
+// ─── Verify (mark as handled correctly) ─────────────────
+router.post('/responses/:id/verify', (req, res) => {
+  try {
+    const chat = Chat.findById(parseInt(req.params.id));
+    if (!chat) return res.status(404).json({ error: 'Not found' });
+
+    let updated;
+    if (chat.verified) {
+      updated = Chat.unverify(chat.id);
+      logger.info(`Unverified chat ${chat.id}`);
+    } else {
+      updated = Chat.markVerified(chat.id, req.user.username);
+      logger.info(`Verified chat ${chat.id} by ${req.user.username}`);
+    }
+    res.json({ success: true, response: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Mode ───────────────────────────────────────────────
 router.get('/mode', (req, res) => {
   res.json({ mode: whatsappService.getMode(), group_names: whatsappService.getMonitoredGroupNames() });

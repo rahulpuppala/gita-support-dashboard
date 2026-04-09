@@ -44,7 +44,12 @@ Respond ONLY with valid JSON:
   "action": "answer" | "remove_host" | "ignore",
   "confidence": 0.0 to 1.0,
   "response": "Your reply if action is not ignore, null otherwise",
-  "reasoning": "Brief explanation of your decision"
+  "reasoning": "Brief explanation of your decision",
+  "extracted_info": {
+    "host_name": "Full name of the person requesting removal (if remove_host)",
+    "host_phone": "Phone number if mentioned in the message (if remove_host, null otherwise)",
+    "host_email": "Email address if mentioned in the message (if remove_host, null otherwise)"
+  }
 }`;
 
 function getPromptTemplate() {
@@ -117,6 +122,7 @@ async function evaluateMessage(message, senderName, contextWindow, knowledgeBlob
       confidence: result.confidence || 0,
       response: result.response || null,
       reasoning: result.reasoning || '',
+      extracted_info: result.extracted_info || null,
     };
   } catch (err) {
     logger.error(`AI evaluation failed: ${err.message}`);

@@ -75,16 +75,32 @@ function initSocket() {
     if (currentView === 'actions') loadActions();
     loadStats();
   });
+  socket.on('email_processed', () => {
+    if (currentView === 'email') loadEmailList();
+    loadEmailStats();
+  });
+  socket.on('email_sent', () => {
+    if (currentView === 'email') loadEmailList();
+    loadEmailStats();
+  });
+  socket.on('email_backfill_progress', (data) => {
+    updateBackfillProgress(data);
+  });
+  socket.on('email_backfill_complete', (data) => {
+    updateBackfillComplete(data);
+    if (currentView === 'email') loadEmailList();
+    loadEmailStats();
+  });
 }
 
 function updateWhatsAppStatus(status) {
   const el = document.getElementById('whatsappStatus');
   if (status === 'connected') {
     el.className = 'flex items-center gap-1.5 ml-4 px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700';
-    el.innerHTML = '<span class="w-2 h-2 rounded-full bg-green-500 pulse-dot"></span> Connected';
+    el.innerHTML = '<span class="w-2 h-2 rounded-full bg-green-500 pulse-dot"></span> WhatsApp';
   } else {
     el.className = 'flex items-center gap-1.5 ml-4 px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-600';
-    el.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500"></span> Disconnected';
+    el.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500"></span> WhatsApp';
   }
 }
 
@@ -92,7 +108,21 @@ async function checkWhatsAppStatus() {
   try {
     const data = await fetch(`${API_BASE}/health`).then(r => r.json());
     updateWhatsAppStatus(data.whatsapp);
+    updateGmailStatus(data.gmail);
   } catch (_) {}
+}
+
+function updateGmailStatus(status) {
+  const el = document.getElementById('gmailStatus');
+  if (status === 'connected') {
+    el.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700';
+    el.innerHTML = '<span class="w-2 h-2 rounded-full bg-green-500 pulse-dot"></span> Gmail';
+    document.getElementById('emailNotConnected')?.classList.add('hidden');
+  } else {
+    el.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-600';
+    el.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500"></span> Gmail';
+    document.getElementById('emailNotConnected')?.classList.remove('hidden');
+  }
 }
 
 // ─── Toast ──────────────────────────────────────────────
@@ -125,6 +155,7 @@ function showView(view) {
   if (view === 'responses') loadResponses();
   if (view === 'ignored') loadIgnored();
   if (view === 'actions') loadActions();
+  if (view === 'email') { loadEmailList(); loadEmailStats(); }
   if (view === 'faqs') loadKnowledge();
   if (view === 'prompt') loadPrompt();
   if (view === 'settings') loadAdminAuthors();
@@ -135,6 +166,7 @@ function showView(view) {
 async function refreshAll() {
   checkWhatsAppStatus();
   loadStats();
+  loadEmailStats();
   refreshMode();
 }
 
@@ -243,9 +275,15 @@ function responseCard(r) {
   const isSent = r.status === 'sent';
   const isPending = r.status === 'pending';
 
+  const isVerified = r.verified;
+
   const statusBadge = isSent
     ? '<span class="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">Sent</span>'
     : '<span class="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">Pending</span>';
+
+  const verifiedBadge = isVerified
+    ? '<span class="px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full">Verified</span>'
+    : '';
 
   const sendBtn = isPending
     ? `<button onclick="dismissResponse(${r.id})" class="ml-2 px-3 py-1 text-xs font-medium border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition">Dismiss</button><button onclick="reevaluateResponse(${r.id}, this)" class="ml-1 px-3 py-1 text-xs font-medium border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 transition">Re-evaluate</button><button onclick="editResponse(${r.id})" class="ml-1 px-3 py-1 text-xs font-medium border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition">Edit</button><button onclick="sendResponse(${r.id})" class="ml-1 px-3 py-1 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">Send Now</button>`
@@ -263,6 +301,7 @@ function responseCard(r) {
               <span class="text-sm font-medium text-gray-900">${esc(r.sender_name)}</span>
               ${r.group_name ? `<span class="px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-600 rounded-full" title="${esc(r.group_name)}">${esc(shortGroupName(r.group_name))}</span>` : ''}
               ${statusBadge}
+              ${verifiedBadge}
               <span class="text-xs text-gray-400">${confidence} confidence</span>
               ${sendBtn}
             </div>
@@ -295,8 +334,9 @@ function responseCard(r) {
           <p class="text-gray-500 text-xs">${esc(r.reasoning || 'N/A')}</p>
         </div>
         ${renderContextWindow(r.context_used)}
-        <div class="pt-2 border-t border-gray-200">
+        <div class="pt-2 border-t border-gray-200 flex gap-2">
           <button onclick="event.stopPropagation(); openKbAppendModal(${r.id})" class="px-3 py-1.5 text-xs font-medium border border-indigo-300 text-indigo-600 rounded-lg hover:bg-indigo-50 transition">Add to Knowledge Base</button>
+          <button onclick="event.stopPropagation(); verifyChat(${r.id}, this)" class="px-3 py-1.5 text-xs font-medium border ${isVerified ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'} rounded-lg transition">${isVerified ? 'Verified' : 'Mark as Correct'}</button>
         </div>
       </div>
     </div>`;
@@ -411,6 +451,24 @@ async function sendEdited(id) {
   }
 }
 
+// ─── Verify ──────────────────────────────────────────
+async function verifyChat(id, btn) {
+  const origText = btn.innerHTML;
+  btn.disabled = true;
+  try {
+    const data = await api(`/dashboard/responses/${id}/verify`, { method: 'POST' });
+    const isNowVerified = data.response.verified;
+    showToast(isNowVerified ? 'Marked as handled correctly' : 'Verification removed');
+    if (currentView === 'responses') loadResponses();
+    if (currentView === 'ignored') loadIgnored();
+  } catch (err) {
+    alert('Failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = origText;
+  }
+}
+
 // ─── Ignored ─────────────────────────────────────────
 async function loadIgnored() {
   ignoredOffset = 0;
@@ -461,6 +519,11 @@ async function loadMoreIgnored() {
 function ignoredCard(r) {
   const time = new Date(r.created_at).toLocaleString();
   const confidence = r.confidence ? `${Math.round(r.confidence * 100)}%` : '-';
+  const isVerified = r.verified;
+
+  const verifiedBadge = isVerified
+    ? '<span class="px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full">Verified</span>'
+    : '';
 
   return `
     <div class="bg-white rounded-xl border border-gray-200 overflow-hidden fade-in">
@@ -472,6 +535,7 @@ function ignoredCard(r) {
               <span class="text-sm font-medium text-gray-900">${esc(r.sender_name)}</span>
               ${r.group_name ? `<span class="px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-600 rounded-full" title="${esc(r.group_name)}">${esc(shortGroupName(r.group_name))}</span>` : ''}
               <span class="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-500 rounded-full">Ignored</span>
+              ${verifiedBadge}
               <span class="text-xs text-gray-400">${confidence} confidence</span>
             </div>
             <p class="text-sm text-gray-600 truncate">${esc(r.message)}</p>
@@ -493,6 +557,7 @@ function ignoredCard(r) {
         <div class="pt-2 border-t border-gray-200 flex gap-2">
           <button onclick="event.stopPropagation(); openKbAppendModal(${r.id})" class="px-3 py-1.5 text-xs font-medium border border-indigo-300 text-indigo-600 rounded-lg hover:bg-indigo-50 transition">Add to Knowledge Base</button>
           <button onclick="event.stopPropagation(); reevaluateIgnored(${r.id}, this)" class="px-3 py-1.5 text-xs font-medium border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 transition">Re-evaluate</button>
+          <button onclick="event.stopPropagation(); verifyChat(${r.id}, this)" class="px-3 py-1.5 text-xs font-medium border ${isVerified ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'} rounded-lg transition">${isVerified ? 'Verified' : 'Mark as Correct'}</button>
         </div>
       </div>
     </div>`;
@@ -542,6 +607,7 @@ function actionCard(a) {
     : '';
 
   const details = a.details || {};
+  const isEmail = details.source === 'email' || a.group_id === 'email';
 
   return `
     <div class="bg-white rounded-xl border border-gray-200 overflow-hidden fade-in">
@@ -550,7 +616,8 @@ function actionCard(a) {
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-1">
               <span class="text-sm font-medium text-gray-900">${esc(a.sender_name)}</span>
-              ${a.group_name ? `<span class="px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-600 rounded-full" title="${esc(a.group_name)}">${esc(shortGroupName(a.group_name))}</span>` : ''}
+              ${isEmail ? '<span class="px-2 py-0.5 text-xs font-medium bg-purple-50 text-purple-600 rounded-full">Email</span>' : ''}
+              ${!isEmail && a.group_name ? `<span class="px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-600 rounded-full" title="${esc(a.group_name)}">${esc(shortGroupName(a.group_name))}</span>` : ''}
               <span class="px-2 py-0.5 text-xs font-medium ${typeColor} rounded-full">${typeLabel}</span>
               ${statusBadge}
               ${resolveBtn}
@@ -561,6 +628,15 @@ function actionCard(a) {
         </div>
       </div>
       <div id="detail-action-${a.id}" class="hidden border-t border-gray-100 px-5 py-4 bg-gray-50 text-sm space-y-4">
+        ${details.host_name || details.host_email || details.host_phone ? `
+        <div class="bg-white rounded-lg p-3 border border-gray-200">
+          <h4 class="font-semibold text-gray-700 mb-2">Host Info</h4>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            ${details.host_name ? `<div><span class="text-gray-400">Name:</span> <span class="text-gray-800 font-medium">${esc(details.host_name)}</span></div>` : ''}
+            ${details.host_email ? `<div><span class="text-gray-400">Email:</span> <span class="text-gray-800 font-medium">${esc(details.host_email)}</span></div>` : ''}
+            ${details.host_phone ? `<div><span class="text-gray-400">Phone:</span> <span class="text-gray-800 font-medium">${esc(details.host_phone)}</span></div>` : ''}
+          </div>
+        </div>` : ''}
         <div>
           <h4 class="font-semibold text-gray-700 mb-1">Original Message</h4>
           <p class="text-gray-600 bg-white rounded-lg p-3 border border-gray-200">${esc(a.original_message || (details.message || 'N/A'))}</p>
@@ -949,6 +1025,332 @@ function testResultCard(message, senderName, r) {
         <span class="font-medium">Reasoning:</span> ${esc(r.reasoning || 'N/A')}
       </div>
     </div>`;
+}
+
+// ─── Email ──────────────────────────────────────────────
+let emailFilter = null;
+let emailOffset = 0;
+let emailTotal = 0;
+
+async function loadEmailStats() {
+  try {
+    const data = await api('/email/status');
+    document.getElementById('emailBadge').textContent = data.pending || 0;
+    document.getElementById('emailStatsLabel').textContent =
+      `${data.total || 0} total | ${data.drafts || 0} drafts | ${data.sent || 0} sent`;
+    updateGmailStatus(data.gmailConnected ? 'connected' : 'disconnected');
+  } catch (_) {}
+}
+
+async function loadEmailList(filter) {
+  if (filter !== undefined) emailFilter = filter;
+  emailOffset = 0;
+
+  // Update filter button styles
+  document.querySelectorAll('.email-filter-btn').forEach(b => {
+    b.classList.remove('bg-indigo-100', 'text-indigo-700', 'border-indigo-300');
+  });
+  const activeFilter = emailFilter || 'all';
+  document.querySelector(`.email-filter-btn[data-filter="${activeFilter}"]`)?.classList.add('bg-indigo-100', 'text-indigo-700', 'border-indigo-300');
+
+  try {
+    const params = `limit=${PAGE_SIZE}&offset=0${emailFilter ? `&filter=${emailFilter}` : ''}`;
+    const data = await api(`/email/list?${params}`);
+    const container = document.getElementById('emailList');
+    const empty = document.getElementById('emailEmpty');
+
+    emailTotal = data.total || 0;
+
+    if (!data.emails.length) {
+      container.innerHTML = '';
+      empty.classList.remove('hidden');
+      document.getElementById('emailLoadMore').classList.add('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    container.innerHTML = data.emails.map(e => emailCard(e)).join('');
+    emailOffset = data.emails.length;
+    document.getElementById('emailLoadMore').classList.toggle('hidden', emailOffset >= emailTotal);
+  } catch (err) {
+    console.error('Failed to load emails:', err);
+  }
+}
+
+async function loadMoreEmails() {
+  const btn = document.getElementById('emailLoadMoreBtn');
+  btn.disabled = true;
+  btn.textContent = 'Loading...';
+  try {
+    const params = `limit=${PAGE_SIZE}&offset=${emailOffset}${emailFilter ? `&filter=${emailFilter}` : ''}`;
+    const data = await api(`/email/list?${params}`);
+    const container = document.getElementById('emailList');
+    container.insertAdjacentHTML('beforeend', data.emails.map(e => emailCard(e)).join(''));
+    emailOffset += data.emails.length;
+    document.getElementById('emailLoadMore').classList.toggle('hidden', emailOffset >= emailTotal);
+  } catch (err) {
+    console.error('Failed to load more emails:', err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Load More';
+  }
+}
+
+function emailCard(e) {
+  const time = e.received_at ? new Date(e.received_at).toLocaleString() : '';
+  const classification = e.classification || 'new';
+
+  const statusBadges = {
+    new: '<span class="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">New</span>',
+    answer: '<span class="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">Answer</span>',
+    remove_host: '<span class="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded-full">Remove Host</span>',
+    ignore: '<span class="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-500 rounded-full">Ignored</span>',
+    duplicate: '<span class="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 rounded-full">Duplicate</span>',
+    error: '<span class="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-600 rounded-full">Error</span>',
+  };
+
+  const draftBadge = e.gmail_draft_id
+    ? '<span class="px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">Draft</span>'
+    : '';
+  const sentBadge = e.status === 'sent'
+    ? '<span class="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">Sent</span>'
+    : '';
+
+  const confidence = e.confidence ? `${Math.round(e.confidence * 100)}%` : '';
+
+  const canAct = e.status !== 'sent' && e.status !== 'ignored' && classification !== 'duplicate';
+  const actionBtns = canAct ? `
+    ${classification === 'new' ? `<button onclick="event.stopPropagation(); processEmailItem(${e.id}, this)" class="px-3 py-1 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">Process</button>` : ''}
+    ${e.response && !e.gmail_draft_id ? `<button onclick="event.stopPropagation(); createEmailDraft(${e.id}, this)" class="px-3 py-1 text-xs font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">Create Draft</button>` : ''}
+    ${e.gmail_draft_id && e.status !== 'sent' ? `<button onclick="event.stopPropagation(); sendEmailDraft(${e.id})" class="px-3 py-1 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 transition">Send</button>` : ''}
+    <button onclick="event.stopPropagation(); dismissEmail(${e.id})" class="px-3 py-1 text-xs font-medium border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition">Dismiss</button>
+    <button onclick="event.stopPropagation(); reevaluateEmail(${e.id}, this)" class="px-3 py-1 text-xs font-medium border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 transition">Re-evaluate</button>
+  ` : '';
+
+  return `
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden fade-in">
+      <div class="px-5 py-4 cursor-pointer hover:bg-gray-50 transition" onclick="toggleDetail('email-${e.id}')">
+        <div class="flex items-start justify-between gap-4">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-1 flex-wrap">
+              <span class="px-1.5 py-0.5 text-xs font-mono font-medium bg-gray-200 text-gray-600 rounded">#${e.id}</span>
+              <span class="text-sm font-medium text-gray-900">${esc(e.from_name || e.from_address)}</span>
+              ${statusBadges[classification] || ''}
+              ${draftBadge}
+              ${sentBadge}
+              ${confidence ? `<span class="text-xs text-gray-400">${confidence}</span>` : ''}
+              ${actionBtns}
+            </div>
+            <p class="text-sm font-medium text-gray-700 truncate">${esc(e.subject)}</p>
+            <p class="text-xs text-gray-500 mt-0.5 truncate">${esc(e.body_snippet || '')}</p>
+          </div>
+          <span class="text-xs text-gray-400 whitespace-nowrap">${time}</span>
+        </div>
+      </div>
+      <div id="detail-email-${e.id}" class="hidden border-t border-gray-100 px-5 py-4 bg-gray-50 text-sm space-y-4">
+        <div>
+          <h4 class="font-semibold text-gray-700 mb-1">From</h4>
+          <p class="text-gray-600 text-xs">${esc(e.from_name || '')} &lt;${esc(e.from_address || '')}&gt;</p>
+        </div>
+        <div>
+          <h4 class="font-semibold text-gray-700 mb-1">Subject</h4>
+          <p class="text-gray-600">${esc(e.subject)}</p>
+        </div>
+        <div>
+          <h4 class="font-semibold text-gray-700 mb-1">Email Body</h4>
+          <pre class="text-gray-600 bg-white rounded-lg p-3 border border-gray-200 text-xs whitespace-pre-wrap max-h-64 overflow-y-auto scrollbar-thin">${esc(e.body_text || e.body_snippet || '')}</pre>
+        </div>
+        ${e.response ? `
+          <div>
+            <h4 class="font-semibold text-gray-700 mb-1">Draft Reply ${e.gmail_draft_id ? '(in Gmail)' : ''}</h4>
+            <div id="email-response-display-${e.id}">
+              <pre class="text-indigo-700 bg-indigo-50 rounded-lg p-3 border border-indigo-100 text-xs whitespace-pre-wrap">${esc(e.response)}</pre>
+            </div>
+            ${canAct ? `
+              <div class="mt-2">
+                <button onclick="event.stopPropagation(); editEmailDraft(${e.id})" class="px-3 py-1.5 text-xs font-medium border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition">Edit Draft</button>
+              </div>
+              <div id="email-edit-${e.id}" class="hidden mt-2">
+                <textarea id="email-textarea-${e.id}" rows="6" class="w-full px-3 py-2.5 border border-indigo-300 rounded-lg text-sm text-indigo-700 focus:ring-2 focus:ring-indigo-500 outline-none resize-none">${esc(e.response)}</textarea>
+                <div class="flex gap-2 mt-2">
+                  <button onclick="event.stopPropagation(); cancelEmailEdit(${e.id})" class="px-3 py-1.5 text-xs font-medium border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition">Cancel</button>
+                  <button onclick="event.stopPropagation(); saveEmailDraft(${e.id})" class="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">Save Draft</button>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        ` : ''}
+        ${e.reasoning ? `
+          <div>
+            <h4 class="font-semibold text-gray-700 mb-1">Reasoning</h4>
+            <p class="text-gray-500 text-xs">${esc(e.reasoning)}</p>
+          </div>
+        ` : ''}
+        ${e.duplicate_of ? `
+          <div>
+            <p class="text-xs text-yellow-700">Duplicate of email #${e.duplicate_of}</p>
+          </div>
+        ` : ''}
+      </div>
+    </div>`;
+}
+
+async function fetchEmails() {
+  const btn = document.getElementById('emailFetchBtn');
+  btn.disabled = true;
+  btn.textContent = 'Fetching...';
+  try {
+    const data = await api('/email/fetch', { method: 'POST' });
+    showToast(`Fetched ${data.fetched} new emails`);
+    loadEmailList();
+    loadEmailStats();
+  } catch (err) {
+    alert('Fetch failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Fetch New';
+  }
+}
+
+async function processEmailItem(id, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Processing...'; }
+  try {
+    await api(`/email/${id}/process`, { method: 'POST' });
+    showToast('Email processed');
+    loadEmailList();
+    loadEmailStats();
+  } catch (err) {
+    alert('Process failed: ' + err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Process'; }
+  }
+}
+
+async function createEmailDraft(id, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating...'; }
+  try {
+    await api(`/email/${id}/draft`, { method: 'POST' });
+    showToast('Gmail draft created');
+    loadEmailList();
+  } catch (err) {
+    alert('Draft creation failed: ' + err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Create Draft'; }
+  }
+}
+
+async function sendEmailDraft(id) {
+  if (!confirm('Send this draft reply via Gmail?')) return;
+  try {
+    await api(`/email/${id}/send`, { method: 'POST' });
+    showToast('Email sent!');
+    loadEmailList();
+    loadEmailStats();
+  } catch (err) {
+    alert('Send failed: ' + err.message);
+  }
+}
+
+async function dismissEmail(id) {
+  if (!confirm('Dismiss this email?')) return;
+  try {
+    await api(`/email/${id}/dismiss`, { method: 'POST' });
+    showToast('Email dismissed');
+    loadEmailList();
+    loadEmailStats();
+  } catch (err) {
+    alert('Dismiss failed: ' + err.message);
+  }
+}
+
+async function reevaluateEmail(id, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Evaluating...'; }
+  try {
+    await api(`/email/${id}/reevaluate`, { method: 'POST' });
+    showToast('Email re-evaluated');
+    loadEmailList();
+    loadEmailStats();
+  } catch (err) {
+    alert('Re-evaluate failed: ' + err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Re-evaluate'; }
+  }
+}
+
+function editEmailDraft(id) {
+  document.getElementById(`email-response-display-${id}`).classList.add('hidden');
+  document.getElementById(`email-edit-${id}`).classList.remove('hidden');
+  document.getElementById(`email-textarea-${id}`).focus();
+}
+
+function cancelEmailEdit(id) {
+  document.getElementById(`email-edit-${id}`).classList.add('hidden');
+  document.getElementById(`email-response-display-${id}`).classList.remove('hidden');
+}
+
+async function saveEmailDraft(id) {
+  const textarea = document.getElementById(`email-textarea-${id}`);
+  const response = textarea.value.trim();
+  if (!response) return alert('Draft cannot be empty');
+  try {
+    await api(`/email/${id}/draft`, { method: 'PUT', body: JSON.stringify({ response }) });
+    showToast('Draft updated in Gmail');
+    loadEmailList();
+  } catch (err) {
+    alert('Save failed: ' + err.message);
+  }
+}
+
+// ─── Email Backfill ─────────────────────────────────────
+async function startBackfill() {
+  const startDate = document.getElementById('backfillStart').value;
+  const endDate = document.getElementById('backfillEnd').value;
+  const delayMs = parseInt(document.getElementById('backfillDelay').value) || 3000;
+  const unreadOnly = document.getElementById('backfillUnread').checked;
+
+  if (!startDate || !endDate) return alert('Select both start and end dates');
+
+  const btn = document.getElementById('backfillBtn');
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
+
+  try {
+    const data = await api('/email/backfill', {
+      method: 'POST',
+      body: JSON.stringify({ startDate, endDate, delayMs, unreadOnly }),
+    });
+    showToast(`Backfill started: ${data.toProcess} emails to process`);
+    document.getElementById('backfillProgress').classList.remove('hidden');
+  } catch (err) {
+    alert('Backfill failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Start Backfill';
+  }
+}
+
+async function stopBackfill() {
+  try {
+    await api('/email/backfill/stop', { method: 'POST' });
+    showToast('Backfill stop requested');
+  } catch (err) {
+    alert('Stop failed: ' + err.message);
+  }
+}
+
+function updateBackfillProgress(data) {
+  document.getElementById('backfillProgress').classList.remove('hidden');
+  const pct = data.total > 0 ? Math.round((data.processed / data.total) * 100) : 0;
+  document.getElementById('backfillBar').style.width = `${pct}%`;
+  document.getElementById('backfillLabel').textContent = `${data.processed}/${data.total}`;
+}
+
+function updateBackfillComplete(data) {
+  document.getElementById('backfillBar').style.width = '100%';
+  document.getElementById('backfillLabel').textContent = `Done: ${data.processed}/${data.total}`;
+  showToast(`Backfill complete: ${data.processed} emails processed`);
+  setTimeout(() => {
+    document.getElementById('backfillProgress').classList.add('hidden');
+  }, 5000);
 }
 
 // ─── Utilities ──────────────────────────────────────────

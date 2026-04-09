@@ -14,6 +14,10 @@ const { enrichKnowledgeBase } = require('./services/kbEnrichment');
 
 const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/api/dashboard');
+const emailRoutes = require('./routes/api/email');
+const { isAuthorized } = require('./services/gmailAuth');
+const { fetchNewEmails } = require('./services/emailService');
+const { processEmail } = require('./services/emailProcessor');
 
 const PORT = process.env.PORT || 3000;
 
@@ -27,9 +31,14 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/email', emailRoutes);
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', whatsapp: whatsappService.isConnected() ? 'connected' : 'disconnected' });
+  res.json({
+    status: 'ok',
+    whatsapp: whatsappService.isConnected() ? 'connected' : 'disconnected',
+    gmail: isAuthorized() ? 'connected' : 'disconnected',
+  });
 });
 
 app.get('*', (req, res) => {
@@ -71,6 +80,33 @@ async function start() {
       }
     });
     logger.info('Daily KB enrichment scheduled at 2:00 AM');
+
+    // Pass socket.io to email routes
+    emailRoutes.setSocketIO(io);
+
+    // Email polling every 2 minutes
+    cron.schedule('*/2 * * * *', async () => {
+      if (!isAuthorized()) return;
+      try {
+        const newEmails = await fetchNewEmails();
+        for (const email of newEmails) {
+          try {
+            await processEmail(email);
+            if (io) io.emit('email_processed', { email });
+          } catch (err) {
+            logger.error(`Email auto-process failed: ${err.message}`);
+          }
+          // 2s delay between processing each email
+          await new Promise(r => setTimeout(r, 2000));
+        }
+        if (newEmails.length > 0) {
+          logger.info(`Auto-processed ${newEmails.length} new emails`);
+        }
+      } catch (err) {
+        logger.error(`Email poll failed: ${err.message}`);
+      }
+    });
+    logger.info('Email polling scheduled every 2 minutes');
 
     logger.info('Gita Support Tool is running');
   } catch (err) {
