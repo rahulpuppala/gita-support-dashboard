@@ -18,17 +18,7 @@ function getKnowledgeBlob() {
 let client = null;
 let isReady = false;
 const monitoredGroupIds = new Set();
-let currentMode = loadSavedMode();
-
-function loadSavedMode() {
-  try {
-    const db = getDb();
-    const row = db.prepare("SELECT value FROM settings WHERE key = 'bot_mode'").get();
-    return (row && (row.value === 'test' || row.value === 'prod')) ? row.value : 'test';
-  } catch {
-    return 'test';
-  }
-}
+let currentMode = 'test';
 let socketIO = null;
 
 const MONITORED_GROUPS = [
@@ -46,12 +36,6 @@ function getMonitoredGroupNames() { return MONITORED_GROUPS; }
 async function setMode(mode) {
   if (mode !== 'test' && mode !== 'prod') throw new Error('Invalid mode');
   currentMode = mode;
-
-  const db = getDb();
-  db.prepare(`
-    INSERT INTO settings (key, value, updated_at) VALUES ('bot_mode', ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
-  `).run(mode);
 
   if (client && isReady) {
     const chats = await client.getChats();

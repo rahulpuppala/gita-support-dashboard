@@ -1,3 +1,7 @@
+function toEST(dateStr) {
+  return new Date(dateStr).toLocaleString('en-US', { timeZone: 'America/New_York' });
+}
+
 const API_BASE = '/api';
 let token = localStorage.getItem('token');
 let currentView = 'responses';
@@ -271,7 +275,7 @@ async function loadMoreResponses() {
 }
 
 function responseCard(r) {
-  const time = new Date(r.created_at).toLocaleString();
+  const time = toEST(r.created_at);
   const isSent = r.status === 'sent';
   const isPending = r.status === 'pending';
 
@@ -517,7 +521,7 @@ async function loadMoreIgnored() {
 }
 
 function ignoredCard(r) {
-  const time = new Date(r.created_at).toLocaleString();
+  const time = toEST(r.created_at);
   const confidence = r.confidence ? `${Math.round(r.confidence * 100)}%` : '-';
   const isVerified = r.verified;
 
@@ -585,7 +589,7 @@ async function loadActions() {
 }
 
 function actionCard(a) {
-  const time = new Date(a.created_at).toLocaleString();
+  const time = toEST(a.created_at);
   const isPending = a.status === 'pending';
 
   const typeLabels = {
@@ -647,7 +651,7 @@ function actionCard(a) {
         </div>
         ${a.resolved_at ? `<div>
           <h4 class="font-semibold text-gray-700 mb-1">Resolved</h4>
-          <p class="text-gray-500 text-xs">${new Date(a.resolved_at).toLocaleString()} by ${esc(a.resolved_by || 'admin')}</p>
+          <p class="text-gray-500 text-xs">${toEST(a.resolved_at)} by ${esc(a.resolved_by || 'admin')}</p>
         </div>` : ''}
       </div>
     </div>`;
@@ -782,7 +786,7 @@ async function loadKnowledge() {
     textarea.value = data.content || '';
     document.getElementById('kbCharCount').textContent = (data.content || '').length.toLocaleString() + ' chars';
     if (data.updated_at) {
-      document.getElementById('kbLastSaved').textContent = 'Last saved: ' + new Date(data.updated_at).toLocaleString();
+      document.getElementById('kbLastSaved').textContent = 'Last saved: ' + toEST(data.updated_at);
     }
   } catch (err) {
     console.error('Failed to load knowledge base:', err);
@@ -796,7 +800,7 @@ async function saveKnowledge() {
   btn.textContent = 'Saving...';
   try {
     await api('/dashboard/knowledge', { method: 'PUT', body: JSON.stringify({ content }) });
-    document.getElementById('kbLastSaved').textContent = 'Last saved: ' + new Date().toLocaleString();
+    document.getElementById('kbLastSaved').textContent = 'Last saved: ' + toEST(new Date());
     showToast('Knowledge base saved');
     exitKbEditMode();
   } catch (err) {
@@ -819,7 +823,7 @@ async function loadPrompt() {
     promptDefaultTemplate = data.defaultTemplate || '';
     document.getElementById('promptCharCount').textContent = (data.content || '').length.toLocaleString() + ' chars';
     if (data.updated_at) {
-      document.getElementById('promptLastSaved').textContent = 'Last saved: ' + new Date(data.updated_at).toLocaleString();
+      document.getElementById('promptLastSaved').textContent = 'Last saved: ' + toEST(data.updated_at);
     } else {
       document.getElementById('promptLastSaved').textContent = 'Using default template';
     }
@@ -870,7 +874,7 @@ async function savePrompt() {
   btn.textContent = 'Saving...';
   try {
     await api('/dashboard/prompt', { method: 'PUT', body: JSON.stringify({ content }) });
-    document.getElementById('promptLastSaved').textContent = 'Last saved: ' + new Date().toLocaleString();
+    document.getElementById('promptLastSaved').textContent = 'Last saved: ' + toEST(new Date());
     document.getElementById('promptCustomBadge').classList.remove('hidden');
     showToast('LLM prompt saved — takes effect on next message');
     exitPromptEditMode();
@@ -1096,7 +1100,7 @@ async function loadMoreEmails() {
 }
 
 function emailCard(e) {
-  const time = e.received_at ? new Date(e.received_at).toLocaleString() : '';
+  const time = e.received_at ? toEST(e.received_at) : '';
   const classification = e.classification || 'new';
 
   const statusBadges = {
