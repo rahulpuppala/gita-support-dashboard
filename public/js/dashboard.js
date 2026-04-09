@@ -96,12 +96,17 @@ async function checkWhatsAppStatus() {
 }
 
 // ─── Toast ──────────────────────────────────────────────
-function showToast(msg) {
+function showToast(msg, type = 'info') {
   const t = document.createElement('div');
-  t.className = 'fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2.5 rounded-lg text-sm shadow-lg z-50 fade-in';
+  if (type === 'warn') {
+    t.className = 'fixed top-4 left-1/2 -translate-x-1/2 bg-amber-500 text-white px-6 py-3 rounded-lg text-sm font-medium shadow-lg z-50 fade-in';
+    setTimeout(() => t.remove(), 4000);
+  } else {
+    t.className = 'fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2.5 rounded-lg text-sm shadow-lg z-50 fade-in';
+    setTimeout(() => t.remove(), 3000);
+  }
   t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 3000);
 }
 
 // ─── Views ──────────────────────────────────────────────
@@ -328,10 +333,18 @@ async function reevaluateResponse(id, btn) {
   btn.disabled = true;
   btn.textContent = 'Evaluating...';
   try {
+    const scrollY = window.scrollY;
     const data = await api(`/dashboard/responses/${id}/reevaluate`, { method: 'POST' });
-    showToast(data.response.status === 'ignored' ? 'Re-evaluated — now ignored' : 'Re-evaluated — new response ready');
-    loadResponses();
-    loadStats();
+    if (data.response.status === 'ignored') {
+      showToast('Re-evaluated — moved to Ignored tab', 'warn');
+      loadResponses();
+      loadStats();
+    } else {
+      showToast('Re-evaluated — new response ready');
+      loadResponses();
+      loadStats();
+      requestAnimationFrame(() => window.scrollTo(0, scrollY));
+    }
   } catch (err) {
     alert('Re-evaluate failed: ' + err.message);
   } finally {
