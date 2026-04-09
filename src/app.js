@@ -9,6 +9,8 @@ const errorHandler = require('./middleware/errorHandler');
 const { migrate } = require('./database/migrate');
 const { seed } = require('./database/seed');
 const whatsappService = require('./services/whatsappService');
+const cron = require('node-cron');
+const { enrichKnowledgeBase } = require('./services/kbEnrichment');
 
 const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/api/dashboard');
@@ -57,6 +59,18 @@ async function start() {
       logger.info('Starting WhatsApp client...');
       await whatsappService.initialize(io);
     }
+
+    // Daily KB enrichment at 2:00 AM
+    cron.schedule('0 2 * * *', async () => {
+      logger.info('Running daily KB enrichment...');
+      try {
+        const result = await enrichKnowledgeBase(1);
+        logger.info(`Daily KB enrichment complete: ${result.added ? result.charsAdded + ' chars added' : result.reason}`);
+      } catch (err) {
+        logger.error(`Daily KB enrichment failed: ${err.message}`);
+      }
+    });
+    logger.info('Daily KB enrichment scheduled at 2:00 AM');
 
     logger.info('Gita Support Tool is running');
   } catch (err) {

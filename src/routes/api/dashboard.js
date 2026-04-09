@@ -6,6 +6,7 @@ const Action = require('../../models/Action');
 const { authenticateToken } = require('../../middleware/auth');
 const whatsappService = require('../../services/whatsappService');
 const { evaluateMessage } = require('../../services/aiEvaluator');
+const { enrichKnowledgeBase } = require('../../services/kbEnrichment');
 const { getDb } = require('../../config/database');
 const logger = require('../../utils/logger');
 
@@ -299,6 +300,21 @@ router.post('/knowledge/append', (req, res) => {
     logger.info(`Knowledge base appended (${content.trim().length} chars)`);
     res.json({ success: true, length: updated.length });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── KB Enrichment ──────────────────────────────────────
+router.post('/knowledge/enrich', async (req, res) => {
+  try {
+    const days = parseInt(req.body.days) || 1;
+    if (days < 1 || days > 90) return res.status(400).json({ error: 'days must be between 1 and 90' });
+
+    logger.info(`KB enrichment triggered manually for ${days} day(s)`);
+    const result = await enrichKnowledgeBase(days);
+    res.json(result);
+  } catch (err) {
+    logger.error(`KB enrichment endpoint failed: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });

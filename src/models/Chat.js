@@ -95,6 +95,16 @@ class Chat {
     `).all(limit).reverse();
   }
 
+  static findRecentDays(days = 1) {
+    const db = getDb();
+    return db.prepare(`
+      SELECT sender_name, message, response, classification, created_at
+      FROM chats
+      WHERE created_at >= datetime('now', '-' || ? || ' days')
+      ORDER BY created_at ASC
+    `).all(days);
+  }
+
   static getStats() {
     const db = getDb();
     return {

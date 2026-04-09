@@ -606,6 +606,30 @@ async function saveKnowledge() {
   }
 }
 
+async function runEnrichment() {
+  const days = parseInt(document.getElementById('enrichDays').value) || 7;
+  const btn = document.getElementById('enrichBtn');
+  btn.disabled = true;
+  btn.textContent = 'Enriching...';
+  try {
+    const result = await api('/dashboard/knowledge/enrich', {
+      method: 'POST',
+      body: JSON.stringify({ days }),
+    });
+    if (result.added) {
+      showToast(`Added ${result.charsAdded} chars from ${result.answeredMessages} answered messages`);
+      loadKnowledge();
+    } else {
+      showToast(result.reason || 'No new knowledge found');
+    }
+  } catch (err) {
+    alert('Enrichment failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Auto-Enrich';
+  }
+}
+
 // ─── Admin Authors ──────────────────────────────────────
 async function loadAdminAuthors() {
   try {
