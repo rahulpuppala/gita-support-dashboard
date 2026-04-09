@@ -575,6 +575,42 @@ async function reevaluateIgnored(id, btn) {
 }
 
 // ─── Knowledge Base ─────────────────────────────────────
+let kbOriginalContent = '';
+
+function toggleKbEdit() {
+  const textarea = document.getElementById('knowledgeBlob');
+  kbOriginalContent = textarea.value;
+  textarea.readOnly = false;
+  textarea.classList.remove('bg-gray-50', 'cursor-default');
+  textarea.classList.add('bg-white');
+  textarea.focus();
+  document.getElementById('kbEditBtn').classList.add('hidden');
+  document.getElementById('kbSaveBtn').classList.remove('hidden');
+  document.getElementById('kbCancelBtn').classList.remove('hidden');
+}
+
+function cancelKbEdit() {
+  const textarea = document.getElementById('knowledgeBlob');
+  textarea.value = kbOriginalContent;
+  textarea.readOnly = true;
+  textarea.classList.add('bg-gray-50', 'cursor-default');
+  textarea.classList.remove('bg-white');
+  document.getElementById('kbEditBtn').classList.remove('hidden');
+  document.getElementById('kbSaveBtn').classList.add('hidden');
+  document.getElementById('kbCancelBtn').classList.add('hidden');
+  document.getElementById('kbCharCount').textContent = kbOriginalContent.length.toLocaleString() + ' chars';
+}
+
+function exitKbEditMode() {
+  const textarea = document.getElementById('knowledgeBlob');
+  textarea.readOnly = true;
+  textarea.classList.add('bg-gray-50', 'cursor-default');
+  textarea.classList.remove('bg-white');
+  document.getElementById('kbEditBtn').classList.remove('hidden');
+  document.getElementById('kbSaveBtn').classList.add('hidden');
+  document.getElementById('kbCancelBtn').classList.add('hidden');
+}
+
 async function loadKnowledge() {
   try {
     const data = await api('/dashboard/knowledge');
@@ -598,6 +634,7 @@ async function saveKnowledge() {
     await api('/dashboard/knowledge', { method: 'PUT', body: JSON.stringify({ content }) });
     document.getElementById('kbLastSaved').textContent = 'Last saved: ' + new Date().toLocaleString();
     showToast('Knowledge base saved');
+    exitKbEditMode();
   } catch (err) {
     alert('Failed: ' + err.message);
   } finally {

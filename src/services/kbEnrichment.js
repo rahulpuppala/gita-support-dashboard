@@ -92,8 +92,10 @@ ${transcript}
       return { added: false, reason: 'No new knowledge found' };
     }
 
-    // Append to KB
-    const updated = currentKB ? `${currentKB}\n\n${result}` : result;
+    // Append to KB with enrichment timestamp
+    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const taggedResult = `\n--- Auto-Enriched on ${timestamp} (${days} day${days > 1 ? 's' : ''} of chat) ---\n${result}`;
+    const updated = currentKB ? `${currentKB}\n${taggedResult}` : taggedResult;
     saveKnowledgeBase(updated);
 
     logger.info(`KB enrichment: added ${result.length} chars from ${days} day(s) of chat history`);

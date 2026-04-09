@@ -23,6 +23,8 @@ let socketIO = null;
 
 const MONITORED_GROUP = 'CGS Webex Hosts Only';
 const MIN_WORD_COUNT = 5;
+const SENDER_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes between bot replies to same sender
+const senderLastReply = new Map(); // senderId -> timestamp of last bot reply
 
 function isConnected() { return isReady; }
 function getMode() { return currentMode; }
@@ -171,6 +173,24 @@ async function handleIncomingMessage(msg) {
     return;
   }
 
+  // --- SENDER COOLDOWN: avoid back-and-forth with one person ---
+  const senderKey = senderPhone || senderId;
+  const lastReply = senderLastReply.get(senderKey);
+  if (lastReply && (Date.now() - lastReply) < SENDER_COOLDOWN_MS) {
+    Chat.saveClassification(chatRecord.id, {
+      classification: 'ignore',
+      confidence: 1,
+      response: null,
+      reasoning: `Cooldown — bot already replied to this sender within ${SENDER_COOLDOWN_MS / 60000} minutes.`,
+      context_used: null,
+      matched_faqs: null,
+      status: 'ignored',
+    });
+    logger.debug(`Cooldown skip for ${senderName} (replied ${Math.round((Date.now() - lastReply) / 1000)}s ago)`);
+    if (socketIO) socketIO.emit('new_ignored', { chat: Chat.findById(chatRecord.id) });
+    return;
+  }
+
   // --- EXTRACT REPLY CONTEXT ---
   let replyContext = null;
   if (msg.hasQuotedMsg) {
@@ -249,6 +269,7 @@ async function handleIncomingMessage(msg) {
       const options = chatRecord.whatsapp_msg_id ? { quotedMessageId: chatRecord.whatsapp_msg_id } : {};
       await chat.sendMessage(taggedResponse, options);
       Chat.markSent(chatRecord.id);
+      senderLastReply.set(senderKey, Date.now());
       logger.info(`Action response sent to ${senderName} (${action}) [mode: ${currentMode}]`);
     }
 
@@ -278,6 +299,7 @@ async function handleIncomingMessage(msg) {
     const options = chatRecord.whatsapp_msg_id ? { quotedMessageId: chatRecord.whatsapp_msg_id } : {};
     await chat.sendMessage(taggedResponse, options);
     Chat.markSent(chatRecord.id);
+    senderLastReply.set(senderKey, Date.now());
     logger.info(`Response sent to ${senderName}`);
   } else {
     logger.info(`[test] Response saved for review: "${msg.body.substring(0, 60)}"`);

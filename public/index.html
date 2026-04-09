@@ -171,11 +171,13 @@
                 <input id="enrichDays" type="number" value="7" min="1" max="90" class="w-14 px-2 py-2 border border-gray-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-indigo-500 outline-none">
                 <button onclick="runEnrichment()" id="enrichBtn" class="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition whitespace-nowrap">Auto-Enrich</button>
               </div>
-              <button onclick="saveKnowledge()" id="kbSaveBtn" class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">Save</button>
+              <button onclick="toggleKbEdit()" id="kbEditBtn" class="bg-gray-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition">Edit</button>
+              <button onclick="saveKnowledge()" id="kbSaveBtn" class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition hidden">Save</button>
+              <button onclick="cancelKbEdit()" id="kbCancelBtn" class="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-600 transition hidden">Cancel</button>
             </div>
           </div>
           <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <textarea id="knowledgeBlob" rows="28" class="w-full px-5 py-4 text-sm text-gray-800 font-mono leading-relaxed outline-none resize-none scrollbar-thin" placeholder="Paste your knowledge base content here..."
+            <textarea id="knowledgeBlob" rows="28" readonly class="w-full px-5 py-4 text-sm text-gray-800 font-mono leading-relaxed outline-none resize-none scrollbar-thin bg-gray-50 cursor-default" placeholder="Paste your knowledge base content here..."
               oninput="document.getElementById('kbCharCount').textContent = this.value.length.toLocaleString() + ' chars'"></textarea>
           </div>
           <p id="kbLastSaved" class="text-xs text-gray-400 mt-2"></p>
