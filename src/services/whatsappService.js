@@ -35,6 +35,7 @@ const MONITORED_GROUPS = [
 const MIN_WORD_COUNT = 5;
 const SENDER_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes between bot replies to same sender
 const senderLastReply = new Map(); // senderId -> timestamp of last bot reply
+const senderProcessing = new Set(); // senderIds currently being processed
 
 function isConnected() { return isReady; }
 function getMode() { return currentMode; }
@@ -193,6 +194,23 @@ async function handleIncomingMessage(msg) {
 
   // --- SENDER COOLDOWN: avoid back-and-forth with one person ---
   const senderKey = senderPhone || senderId;
+
+  // Prevent concurrent processing for the same sender
+  if (senderProcessing.has(senderKey)) {
+    Chat.saveClassification(chatRecord.id, {
+      classification: 'ignore',
+      confidence: 1,
+      response: null,
+      reasoning: 'Already processing another message from this sender.',
+      context_used: null,
+      matched_faqs: null,
+      status: 'ignored',
+    });
+    logger.debug(`Skipped concurrent message from ${senderName}`);
+    if (socketIO) socketIO.emit('new_ignored', { chat: Chat.findById(chatRecord.id) });
+    return;
+  }
+
   const lastReply = senderLastReply.get(senderKey);
   if (lastReply && (Date.now() - lastReply) < SENDER_COOLDOWN_MS) {
     Chat.saveClassification(chatRecord.id, {
@@ -208,6 +226,9 @@ async function handleIncomingMessage(msg) {
     if (socketIO) socketIO.emit('new_ignored', { chat: Chat.findById(chatRecord.id) });
     return;
   }
+
+  senderProcessing.add(senderKey);
+  try {
 
   // --- EXTRACT REPLY CONTEXT ---
   let replyContext = null;
@@ -241,6 +262,11 @@ async function handleIncomingMessage(msg) {
   const result = await evaluateMessage(msg.body, senderName, contextWindow, knowledgeBlob, replyContext);
 
   const action = result.action || (result.shouldRespond ? 'answer' : 'ignore');
+
+  // --- SET COOLDOWN after any non-ignore classification ---
+  if (action !== 'ignore') {
+    senderLastReply.set(senderKey, Date.now());
+  }
 
   // --- IGNORE ---
   if (action === 'ignore') {
@@ -295,7 +321,6 @@ async function handleIncomingMessage(msg) {
       const options = chatRecord.whatsapp_msg_id ? { quotedMessageId: chatRecord.whatsapp_msg_id } : {};
       await chat.sendMessage(taggedResponse, options);
       Chat.markSent(chatRecord.id);
-      senderLastReply.set(senderKey, Date.now());
       logger.info(`Action response sent to ${senderName} (${action}) [mode: ${currentMode}]`);
     }
 
@@ -325,7 +350,6 @@ async function handleIncomingMessage(msg) {
     const options = chatRecord.whatsapp_msg_id ? { quotedMessageId: chatRecord.whatsapp_msg_id } : {};
     await chat.sendMessage(taggedResponse, options);
     Chat.markSent(chatRecord.id);
-    senderLastReply.set(senderKey, Date.now());
     logger.info(`Response sent to ${senderName}`);
   } else {
     logger.info(`[test] Response saved for review: "${msg.body.substring(0, 60)}"`);
@@ -333,6 +357,10 @@ async function handleIncomingMessage(msg) {
 
   if (socketIO) {
     socketIO.emit('new_response', { chat: Chat.findById(chatRecord.id) });
+  }
+
+  } finally {
+    senderProcessing.delete(senderKey);
   }
 }
 
