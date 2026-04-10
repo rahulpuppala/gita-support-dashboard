@@ -33,7 +33,7 @@ Classify this message into one of three actions, then respond accordingly.
 - If someone is talking TO another person (e.g., replying to someone), ignore it — they are not asking the group.
 
 ## Response Rules
-- **Always start your reply with "Hari Om, {{SENDER_NAME}}"** — use only the first name if the name is in "First Last" format, otherwise use the full name as-is. This greeting is mandatory for every response (answer and remove_host).
+- **Always start your reply with "Hari Om, [first name]"** — this greeting is mandatory for every response (answer and remove_host). Use only the person's first name.
 - State facts directly. Do NOT use phrases like "The admin team has shared...", "Per the admin team...", or "We recommend...". Just state the answer.
 - Be brief and direct. No filler, no flowery language, no unnecessary preamble.
 - **NEVER fabricate, guess, or infer information** that is not explicitly in the knowledge base.
@@ -100,7 +100,7 @@ async function evaluateMessage(message, senderName, contextWindow, knowledgeBlob
     const client = getClient();
 
     const completion = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: process.env.OPENAI_MODEL || 'gpt-5.4-nano',
       messages: [
         { role: 'system', content: 'You are a support assistant. Always respond with valid JSON only.' },
         { role: 'user', content: prompt },

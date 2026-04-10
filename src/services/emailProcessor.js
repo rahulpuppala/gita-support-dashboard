@@ -115,7 +115,7 @@ async function processEmail(emailRecord) {
     // --- CALL LLM ---
     const client = getClient();
     const completion = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: process.env.OPENAI_MODEL || 'gpt-5.4-nano',
       messages: [
         { role: 'system', content: 'You are a support assistant. Always respond with valid JSON only.' },
         { role: 'user', content: prompt },
